@@ -24,7 +24,7 @@ st.set_page_config(
 
 # Barra lateral de navegación
 with st.sidebar:
-    st.title("📊 Holtmont Dashboard")
+    st.title("📊 Holtmont Dashboard DEMO")
     st.markdown("Navega por las diferentes secciones:")
     section = st.radio("Secciones", [
         "Registrar Solicitudes",
