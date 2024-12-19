@@ -14,7 +14,7 @@ if "cotizaciones" not in st.session_state:
 
 # Función para registrar solicitudes
 def registrar_solicitudes():
-    st.title("Registro de Solicitudes de Presupuesto")
+    st.title("Registro de Solicitudes de Presupuesto para Holtmont Services( primer entremaniento de datos para IA especializada 1/20 )")
     with st.form("Formulario de Solicitud"):
         nombre = st.text_input("Nombre del Cliente:")
         descripcion = st.text_area("Descripción de la Solicitud:")
