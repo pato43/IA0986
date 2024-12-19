@@ -13,17 +13,43 @@ if "cotizaciones" not in st.session_state:
     st.session_state["cotizaciones"] = []  # Para cotizaciones
 
 if "usuarios" not in st.session_state:
-    st.session_state["usuarios"] = []  # Para roles y restricciones
+    st.session_state["usuarios"] = []  # Para gestión de usuarios
+
+# Configuración del layout principal
+st.set_page_config(
+    page_title="Dashboard Holtmont Services",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Barra lateral de navegación
+with st.sidebar:
+    st.title("📊 Holtmont Dashboard")
+    st.markdown("Navega por las diferentes secciones:")
+    section = st.radio("Secciones", [
+        "Registrar Solicitudes",
+        "Visualizar Solicitudes",
+        "Aprobar Presupuestos",
+        "Gestión de Cotizaciones",
+        "Visualización de Cotizaciones",
+        "Tiempos de Respuesta",
+        "Asignación de Proyectos",
+        "Alertas y Recordatorios",
+        "Roles y Equipos"
+    ])
+    st.markdown("---")
+    st.info("Demo para el primer entrenamiento de IA especializada (1/20)")
 
 # Función para registrar solicitudes
 def registrar_solicitudes():
-    st.title("Registro de Solicitudes de Presupuesto para Holtmont Services")
+    st.title("📌 Registro de Solicitudes")
+    st.markdown("Ingresa los detalles para registrar una nueva solicitud de presupuesto.")
     with st.form("Formulario de Solicitud"):
         nombre = st.text_input("Nombre del Cliente:")
         descripcion = st.text_area("Descripción de la Solicitud:")
         presupuesto = st.number_input("Presupuesto Estimado:", min_value=0.0, step=0.1)
-        medio = st.selectbox("Medio de Solicitud:", ["En Campo", "Telefónica", "Correo Electrónico"])
         fecha = st.date_input("Fecha de Solicitud:", value=datetime.today())
+        medio = st.selectbox("Medio de Solicitud:", ["Campo", "Teléfono", "Correo Electrónico"])
         
         submitted = st.form_submit_button("Registrar Solicitud")
         if submitted:
@@ -32,30 +58,30 @@ def registrar_solicitudes():
                     "Nombre": nombre,
                     "Descripción": descripcion,
                     "Presupuesto": presupuesto,
-                    "Medio": medio,
                     "Fecha": fecha.strftime("%Y-%m-%d"),
+                    "Medio": medio
                 }
                 st.session_state["solicitudes"].append(nueva_solicitud)
-                st.success("Solicitud registrada exitosamente.")
+                st.success("✅ Solicitud registrada exitosamente.")
             else:
-                st.error("Por favor, completa todos los campos correctamente.")
+                st.error("⚠️ Por favor, completa todos los campos correctamente.")
 
 # Función para visualizar solicitudes
 def visualizar_solicitudes():
-    st.title("Solicitudes de Presupuesto Registradas")
+    st.title("📋 Visualización de Solicitudes")
     if st.session_state["solicitudes"]:
         for idx, solicitud in enumerate(st.session_state["solicitudes"]):
             with st.expander(f"Solicitud {idx+1}: {solicitud['Nombre']}"):
                 st.write("**Descripción:**", solicitud["Descripción"])
                 st.write("**Presupuesto Estimado:**", solicitud["Presupuesto"])
-                st.write("**Medio:**", solicitud["Medio"])
                 st.write("**Fecha:**", solicitud["Fecha"])
+                st.write("**Medio:**", solicitud["Medio"])
     else:
-        st.warning("No hay solicitudes registradas.")
+        st.warning("⚠️ No hay solicitudes registradas.")
 
 # Función para aprobar presupuestos
 def aprobar_presupuestos():
-    st.title("Aprobación de Presupuestos")
+    st.title("✅ Aprobación de Presupuestos")
     if st.session_state["solicitudes"]:
         for idx, solicitud in enumerate(st.session_state["solicitudes"]):
             with st.expander(f"Solicitud {idx+1}: {solicitud['Nombre']}"):
@@ -74,160 +100,177 @@ def aprobar_presupuestos():
                             "Fecha": solicitud["Fecha"],
                         }
                         st.session_state["presupuestos"].append(nuevo_presupuesto)
-                        st.success(f"Presupuesto aprobado para la solicitud {idx+1}.")
+                        st.success(f"✅ Presupuesto aprobado para la solicitud {idx+1}.")
     else:
-        st.warning("No hay solicitudes para aprobar.")
+        st.warning("⚠️ No hay solicitudes para aprobar.")
 
-# Navegación entre tabs
-tab1, tab2, tab3 = st.tabs(["Registrar Solicitudes", "Visualizar Solicitudes", "Aprobar Presupuestos"])
-
-with tab1:
+# Lógica para renderizar la sección seleccionada
+if section == "Registrar Solicitudes":
     registrar_solicitudes()
-
-with tab2:
+elif section == "Visualizar Solicitudes":
     visualizar_solicitudes()
-
-with tab3:
+elif section == "Aprobar Presupuestos":
     aprobar_presupuestos()
-# Función para generar reportes automáticos con folios asignados
-def generar_reportes_automaticos():
-    st.title("Generación de Reportes Automáticos")
+# Función para gestionar cotizaciones
+def gestionar_cotizaciones():
+    st.title("📄 Gestión de Cotizaciones")
     if st.session_state["solicitudes"]:
-        if st.button("Generar Reporte con Folios"):
+        for idx, solicitud in enumerate(st.session_state["solicitudes"]):
+            with st.expander(f"Solicitud {idx+1}: {solicitud['Nombre']}"):
+                st.write("**Descripción:**", solicitud["Descripción"])
+                st.write("**Presupuesto Estimado:**", solicitud["Presupuesto"])
+                st.write("**Fecha:**", solicitud["Fecha"])
+                st.write("**Medio:**", solicitud["Medio"])
+                
+                proveedor = st.text_input(f"Proveedor para Solicitud {idx+1}:", key=f"proveedor_{idx}")
+                costo = st.number_input(f"Costo Cotizado para Solicitud {idx+1}:", min_value=0.0, step=0.1, key=f"costo_{idx}")
+                detalles = st.text_area(f"Detalles de la Cotización para Solicitud {idx+1}:", key=f"detalles_{idx}")
+                
+                if st.button(f"Registrar Cotización {idx+1}", key=f"registrar_cot_{idx}"):
+                    if proveedor and costo > 0 and detalles:
+                        nueva_cotizacion = {
+                            "Nombre Cliente": solicitud["Nombre"],
+                            "Proveedor": proveedor,
+                            "Costo Cotizado": costo,
+                            "Detalles": detalles,
+                            "Fecha": solicitud["Fecha"]
+                        }
+                        st.session_state["cotizaciones"].append(nueva_cotizacion)
+                        st.success(f"✅ Cotización registrada para la solicitud {idx+1}.")
+                    else:
+                        st.error("⚠️ Por favor, completa todos los campos correctamente.")
+    else:
+        st.warning("⚠️ No hay solicitudes registradas para gestionar cotizaciones.")
+
+# Función para visualizar cotizaciones
+def visualizar_cotizaciones():
+    st.title("📊 Visualización de Cotizaciones")
+    if st.session_state["cotizaciones"]:
+        for idx, cotizacion in enumerate(st.session_state["cotizaciones"]):
+            with st.expander(f"Cotización {idx+1}: {cotizacion['Proveedor']}"):
+                st.write("**Cliente:**", cotizacion["Nombre Cliente"])
+                st.write("**Proveedor:**", cotizacion["Proveedor"])
+                st.write("**Costo Cotizado:**", cotizacion["Costo Cotizado"])
+                st.write("**Detalles:**", cotizacion["Detalles"])
+                st.write("**Fecha:**", cotizacion["Fecha"])
+    else:
+        st.warning("⚠️ No hay cotizaciones registradas.")
+
+# Función para generar reportes PDF
+def generar_reporte_pdf():
+    st.title("📑 Generación de Reportes PDF")
+    if st.session_state["presupuestos"]:
+        if st.button("Generar Reporte PDF"):
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
 
-            pdf.cell(200, 10, txt="Reporte de Solicitudes Registradas", ln=True, align="C")
+            pdf.cell(200, 10, txt="Reporte de Presupuestos Aprobados", ln=True, align="C")
             pdf.ln(10)
 
-            for idx, solicitud in enumerate(st.session_state["solicitudes"]):
-                folio = f"FOLIO-{idx+1:04d}"
-                pdf.cell(200, 10, txt=f"Folio: {folio}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Nombre: {solicitud['Nombre']}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Descripción: {solicitud['Descripción']}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Presupuesto Estimado: ${solicitud['Presupuesto']}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Medio: {solicitud['Medio']}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Fecha: {solicitud['Fecha']}", ln=True, align="L")
+            for idx, presupuesto in enumerate(st.session_state["presupuestos"]):
+                pdf.cell(200, 10, txt=f"Presupuesto {idx+1}", ln=True, align="L")
+                pdf.cell(200, 10, txt=f"Nombre: {presupuesto['Nombre']}", ln=True, align="L")
+                pdf.cell(200, 10, txt=f"Descripción: {presupuesto['Descripción']}", ln=True, align="L")
+                pdf.cell(200, 10, txt=f"Presupuesto Aprobado: ${presupuesto['Presupuesto Aprobado']}", ln=True, align="L")
+                pdf.cell(200, 10, txt=f"Fecha: {presupuesto['Fecha']}", ln=True, align="L")
                 pdf.ln(5)
             
             # Guardar el PDF
-            pdf_output_path = "reporte_solicitudes_folios.pdf"
+            pdf_output_path = "reporte_presupuestos.pdf"
             pdf.output(pdf_output_path)
-            st.success(f"Reporte generado exitosamente: {pdf_output_path}")
+            st.success(f"✅ Reporte generado exitosamente: {pdf_output_path}")
             with open(pdf_output_path, "rb") as file:
-                st.download_button("Descargar Reporte PDF con Folios", file, file_name=pdf_output_path)
+                st.download_button("Descargar Reporte PDF", file, file_name=pdf_output_path)
     else:
-        st.warning("No hay solicitudes registradas para generar reportes.")
+        st.warning("⚠️ No hay presupuestos aprobados para generar un reporte.")
 
-# Función para gestionar roles y restricciones
-def gestionar_roles():
-    st.title("Gestión de Roles y Restricciones")
-    with st.form("Formulario de Usuarios"):
-        usuario = st.text_input("Nombre del Usuario:")
-        rol = st.selectbox("Rol del Usuario:", ["Administrador", "Coordinador", "Campo", "Principal"])
-        
-        submitted = st.form_submit_button("Registrar Usuario")
-        if submitted:
-            if usuario and rol:
-                nuevo_usuario = {"Usuario": usuario, "Rol": rol}
-                st.session_state["usuarios"].append(nuevo_usuario)
-                st.success("Usuario registrado exitosamente.")
-            else:
-                st.error("Por favor, completa todos los campos.")
-
-    st.subheader("Usuarios Registrados")
-    if st.session_state["usuarios"]:
-        for idx, usuario in enumerate(st.session_state["usuarios"]):
-            st.write(f"**Usuario {idx+1}:** {usuario['Usuario']} - **Rol:** {usuario['Rol']}")
-    else:
-        st.warning("No hay usuarios registrados.")
-
-# Función para visualizar asignación de equipos y responsabilidades
-def visualizar_equipos():
-    st.title("Asignación de Equipos y Responsabilidades")
-    equipos = [
-        {"Equipo": "Equipo A", "Responsable": "Líder A", "Proyectos Asignados": 5},
-        {"Equipo": "Equipo B", "Responsable": "Líder B", "Proyectos Asignados": 3},
-    ]
-    for equipo in equipos:
-        with st.expander(f"{equipo['Equipo']} - Responsable: {equipo['Responsable']}"):
-            st.write(f"**Proyectos Asignados:** {equipo['Proyectos Asignados']}")
-
-# Navegación para esta sección
-tab4, tab5, tab6 = st.tabs(["Generar Reportes con Folios", "Gestión de Roles", "Visualización de Equipos"])
-
-with tab4:
-    generar_reportes_automaticos()
-
-with tab5:
-    gestionar_roles()
-
-with tab6:
-    visualizar_equipos()
-# Función para tiempos de respuesta y sistema de semáforos
-def gestionar_tiempos_respuesta():
-    st.title("Gestión de Tiempos de Respuesta")
-    dias_alerta = st.slider("Definir días para alertas:", min_value=1, max_value=10, value=3)
-    
+# Lógica para renderizar la sección seleccionada
+if section == "Gestión de Cotizaciones":
+    gestionar_cotizaciones()
+elif section == "Visualización de Cotizaciones":
+    visualizar_cotizaciones()
+elif section == "Generar Reportes PDF":
+    generar_reporte_pdf()
+# Función para gestionar tiempos de respuesta y semáforos
+def gestionar_tiempos():
+    st.title("⏳ Gestión de Tiempos de Respuesta")
     if st.session_state["solicitudes"]:
         for idx, solicitud in enumerate(st.session_state["solicitudes"]):
-            fecha_solicitud = datetime.strptime(solicitud["Fecha"], "%Y-%m-%d")
-            dias_transcurridos = (datetime.today() - fecha_solicitud).days
-            
-            estado = "En Tiempo"
-            color = "green"
-            if dias_transcurridos > dias_alerta:
-                estado = "Retrasado"
-                color = "red"
-            elif dias_transcurridos > dias_alerta - 2:
-                estado = "Cercano a Límite"
-                color = "yellow"
-            
-            with st.expander(f"Solicitud {idx+1}: {solicitud['Nombre']}"):
-                st.write("**Descripción:**", solicitud["Descripción"])
-                st.write("**Días Transcurridos:**", dias_transcurridos)
-                st.markdown(f"**Estado:** <span style='color:{color}'>{estado}</span>", unsafe_allow_html=True)
+            tiempo_respuesta = st.number_input(
+                f"Días estimados de respuesta para Solicitud {idx+1}:",
+                min_value=0, max_value=30, step=1, key=f"tiempo_respuesta_{idx}"
+            )
+            if tiempo_respuesta > 0:
+                color = "🟢" if tiempo_respuesta <= 2 else "🟡" if tiempo_respuesta <= 5 else "🔴"
+                st.write(f"Estado de tiempo para la Solicitud {idx+1}: {color}")
     else:
-        st.warning("No hay solicitudes registradas para gestionar tiempos de respuesta.")
+        st.warning("⚠️ No hay solicitudes registradas para gestionar tiempos de respuesta.")
 
-# Función para monitoreo y asignación de proyectos
-def monitorear_asignaciones():
-    st.title("Monitoreo y Asignación de Proyectos")
+# Función para gestionar asignaciones y equipos
+def gestionar_asignaciones():
+    st.title("📌 Gestión de Asignaciones")
     if st.session_state["presupuestos"]:
         for idx, presupuesto in enumerate(st.session_state["presupuestos"]):
-            with st.expander(f"Proyecto {idx+1}: {presupuesto['Nombre']}"):
-                st.write("**Descripción:**", presupuesto["Descripción"])
-                st.write("**Presupuesto Aprobado:**", presupuesto["Presupuesto Aprobado"])
-                st.write("**Fecha:**", presupuesto["Fecha"])
-                
-                asignado_a = st.text_input(f"Asignar Responsable para Proyecto {idx+1}:", key=f"responsable_{idx}")
-                progreso = st.slider(f"Progreso del Proyecto {idx+1}:", 0, 100, key=f"progreso_{idx}")
-                
-                if st.button(f"Actualizar Proyecto {idx+1}", key=f"actualizar_{idx}"):
-                    st.success(f"Proyecto {idx+1} actualizado: Responsable: {asignado_a}, Progreso: {progreso}%")
+            with st.expander(f"Presupuesto {idx+1}: {presupuesto['Nombre']}"):
+                equipo_asignado = st.text_input(
+                    f"Equipo asignado para Presupuesto {idx+1}:",
+                    key=f"equipo_asignado_{idx}"
+                )
+                responsabilidades = st.text_area(
+                    f"Responsabilidades asignadas para el Equipo {equipo_asignado}:",
+                    key=f"responsabilidades_{idx}"
+                )
+                if st.button(f"Asignar Equipo a Presupuesto {idx+1}", key=f"asignar_equipo_{idx}"):
+                    if equipo_asignado and responsabilidades:
+                        st.success(f"✅ Equipo '{equipo_asignado}' asignado exitosamente.")
+                    else:
+                        st.error("⚠️ Por favor, completa los campos de asignación.")
     else:
-        st.warning("No hay proyectos aprobados para monitorear.")
+        st.warning("⚠️ No hay presupuestos aprobados para asignar equipos.")
 
-# Función para generar alertas y recordatorios
-def generar_alertas():
-    st.title("Alertas y Recordatorios")
-    recordatorios = [
-        {"Tarea": "Enviar cotización al cliente", "Fecha Límite": (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")},
-        {"Tarea": "Revisión de presupuesto", "Fecha Límite": (datetime.today() + timedelta(days=3)).strftime("%Y-%m-%d")},
-    ]
-    for idx, recordatorio in enumerate(recordatorios):
-        with st.expander(f"Recordatorio {idx+1}: {recordatorio['Tarea']}"):
-            st.write("**Fecha Límite:**", recordatorio["Fecha Límite"])
+# Función para gestionar alertas y recordatorios
+def gestionar_alertas():
+    st.title("⏰ Alertas y Recordatorios Automáticos")
+    alertas_pendientes = []
+    for solicitud in st.session_state["solicitudes"]:
+        fecha_solicitud = datetime.strptime(solicitud["Fecha"], "%Y-%m-%d")
+        dias_transcurridos = (datetime.today() - fecha_solicitud).days
+        if dias_transcurridos > 5:
+            alertas_pendientes.append(
+                f"⚠️ Solicitud de {solicitud['Nombre']} está pendiente por más de {dias_transcurridos} días."
+            )
+    if alertas_pendientes:
+        for alerta in alertas_pendientes:
+            st.warning(alerta)
+    else:
+        st.success("✅ No hay alertas pendientes.")
 
-# Navegación para esta última sección
-tab7, tab8, tab9 = st.tabs(["Tiempos de Respuesta", "Monitoreo de Asignaciones", "Alertas y Recordatorios"])
+# Dashboards personalizados por roles
+def dashboard_personalizado(usuario):
+    if usuario == "Administrativo":
+        gestionar_asignaciones()
+        generar_reporte_pdf()
+    elif usuario == "Coordinador":
+        gestionar_tiempos()
+        gestionar_alertas()
+    elif usuario == "Campo":
+        gestionar_cotizaciones()
+    else:
+        st.warning("⚠️ Rol no reconocido. Selecciona un rol válido.")
 
-with tab7:
-    gestionar_tiempos_respuesta()
+# Función principal para seleccionar el rol del usuario
+def seleccionar_rol_usuario():
+    st.sidebar.title("🎭 Selección de Rol de Usuario")
+    usuario = st.sidebar.selectbox(
+        "Selecciona tu rol:", ["Seleccione", "Administrativo", "Coordinador", "Campo"]
+    )
+    if usuario != "Seleccione":
+        dashboard_personalizado(usuario)
 
-with tab8:
-    monitorear_asignaciones()
+# Inicio del programa principal
+def main():
+    seleccionar_rol_usuario()
 
-with tab9:
-    generar_alertas()
+if __name__ == "__main__":
+    main()
