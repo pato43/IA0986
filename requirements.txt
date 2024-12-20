@@ -2,3 +2,4 @@ streamlit
 datetime
 fpdf
 matplotlib
+seaborn
