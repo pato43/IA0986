@@ -1,6 +1,7 @@
 streamlit
-datetime
-fpdf
+pandas
 matplotlib
 seaborn
-sklearn
+scikit-learn
+numpy
+pickle5
