@@ -1,280 +1,285 @@
-# Parte 1: Configuración inicial y visualización básica
-
+# Parte 1: Importaciones, Configuración Inicial y Carga de Datos
 import streamlit as st
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
-from datetime import datetime
 
-# Configuración inicial del dashboard
+# Configuración inicial
 st.set_page_config(
-    page_title="Dashboard de Detección de Anomalías",
-    page_icon="📊",
-    layout="wide"
+    page_title="Sistema de Evaluación de Cotizaciones",
+    page_icon="💼",
+    layout="wide",
 )
 
-# Título y descripción
-st.title("📊 Dashboard de Detección de Anomalías en Gastos e Inventarios")
-st.markdown("""
-Bienvenido al sistema interactivo para la detección de procesos irregulares en datos de gastos e inventarios.
-Utiliza filtros dinámicos, gráficos avanzados y alertas para identificar posibles desviaciones.
-""")
+# Encabezado principal
+st.title("Sistema de Evaluación de Cotizaciones 💼")
+st.write(
+    """
+    Este sistema permite gestionar cotizaciones, evaluar su complejidad y relevancia, y 
+    administrar usuarios y roles de manera interactiva. 
+    """
+)
 
-# Carga de datos simulados
-@st.cache
-def cargar_datos():
-    np.random.seed(42)
-    fechas = pd.date_range(start="2024-01-01", end="2024-12-31", freq="D")
-    datos = pd.DataFrame({
-        "Fecha": fechas,
-        "Categoría": np.random.choice(["Inventario", "Marketing", "Operaciones", "Otros"], size=len(fechas)),
-        "Monto": np.random.normal(50000, 15000, size=len(fechas)).clip(min=0),
-        "ID_Transacción": [f"T-{i}" for i in range(len(fechas))]
+# Sección 1: Carga de datos (simulados o subidos por el usuario)
+st.header("Carga de Cotizaciones 📄")
+uploaded_file = st.file_uploader("Sube un archivo CSV con cotizaciones", type=["csv"])
+
+# Si no se sube archivo, generar datos simulados
+if uploaded_file is not None:
+    cotizaciones_df = pd.read_csv(uploaded_file)
+    st.success("Archivo cargado correctamente.")
+else:
+    st.warning("No se cargó un archivo. Usando datos simulados...")
+    cotizaciones_df = pd.DataFrame({
+        "ID_Cotización": range(1, 11),
+        "Cliente": [f"Cliente {i}" for i in range(1, 11)],
+        "Monto": np.random.randint(5000, 50000, 10),
+        "Complejidad": np.random.choice(["Alta", "Media", "Baja"], 10),
+        "Estatus": np.random.choice(["Aceptada", "Pendiente", "Rechazada"], 10),
     })
-    return datos
 
-# Llamada a la función para cargar los datos
-df = cargar_datos()
+# Mostrar tabla de cotizaciones
+st.write("### Cotizaciones Actuales:")
+st.dataframe(cotizaciones_df)
 
-# Visualización inicial de los datos cargados
-st.sidebar.header("Filtros")
-st.sidebar.markdown("Ajusta los parámetros para analizar los datos.")
+# Función para calcular resumen de complejidad
+def calcular_resumen_complejidad(df):
+    return df["Complejidad"].value_counts()
 
-# Filtros interactivos
-categorias = st.sidebar.multiselect(
-    "Selecciona Categorías:",
-    options=df["Categoría"].unique(),
-    default=df["Categoría"].unique()
+# Generar resumen y mostrar gráfico de barras
+st.write("### Resumen de Complejidad:")
+complejidad_resumen = calcular_resumen_complejidad(cotizaciones_df)
+
+# Solución alternativa: Usar Matplotlib para gráfico de pastel
+fig, ax = plt.subplots()
+ax.pie(
+    complejidad_resumen,
+    labels=complejidad_resumen.index,
+    autopct='%1.1f%%',
+    startangle=90,
+    colors=["#FF9999", "#66B3FF", "#99FF99"]
 )
-
-rango_montos = st.sidebar.slider(
-    "Rango de Monto:",
-    min_value=int(df["Monto"].min()),
-    max_value=int(df["Monto"].max()),
-    value=(int(df["Monto"].min()), int(df["Monto"].max()))
-)
-
-rango_fechas = st.sidebar.date_input(
-    "Selecciona Rango de Fechas:",
-    [df["Fecha"].min(), df["Fecha"].max()]
-)
-
-# Filtrado de los datos según los parámetros seleccionados
-df_filtrado = df[
-    (df["Categoría"].isin(categorias)) &
-    (df["Monto"].between(rango_montos[0], rango_montos[1])) &
-    (df["Fecha"].between(rango_fechas[0], rango_fechas[1]))
-]
-
-# Mostrar datos filtrados
-st.write("### Datos Filtrados")
-st.dataframe(df_filtrado)
-
-# Métricas clave
-st.write("### Resumen de Métricas Clave")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    total_transacciones = len(df_filtrado)
-    st.metric("Total de Transacciones", total_transacciones)
-
-with col2:
-    total_monto = df_filtrado["Monto"].sum()
-    st.metric("Monto Total Filtrado", f"${total_monto:,.2f}")
-
-with col3:
-    promedio_monto = df_filtrado["Monto"].mean()
-    st.metric("Monto Promedio", f"${promedio_monto:,.2f}")
-
-# Alertas básicas de anomalías
-st.write("### Alertas de Anomalías")
-umbral_alto = 100000  # Definimos un umbral alto para identificar valores extremos
-anomalías = df_filtrado[df_filtrado["Monto"] > umbral_alto]
-
-if not anomalías.empty:
-    st.warning(f"⚠️ Se han detectado {len(anomalías)} transacciones sospechosas con montos superiores a ${umbral_alto}.")
-    st.dataframe(anomalías)
-else:
-    st.success("✅ No se detectaron transacciones sospechosas según el umbral definido.")
-
-# Gráfico de montos por categoría
-st.write("### Gráfico de Montos por Categoría")
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.boxplot(data=df_filtrado, x="Categoría", y="Monto", ax=ax, palette="viridis")
-ax.set_title("Distribución de Montos por Categoría")
-ax.set_xlabel("Categoría")
-ax.set_ylabel("Monto")
+ax.axis("equal")  # Asegura que el gráfico sea circular
 st.pyplot(fig)
-# Parte 2: Visualización avanzada y análisis de anomalías
+# Parte 2: Evaluación de relevancia, gestión de roles y análisis interactivo
+st.header("Evaluación y Gestión 📊")
 
-# Gráfico de tendencias por categoría
-st.write("### Tendencias de Gastos por Categoría a lo Largo del Tiempo")
-fig, ax = plt.subplots(figsize=(12, 6))
-for categoria in df_filtrado["Categoría"].unique():
-    datos_categoria = df_filtrado[df_filtrado["Categoría"] == categoria]
-    ax.plot(datos_categoria["Fecha"], datos_categoria["Monto"].rolling(window=7).mean(), label=categoria)
-ax.set_title("Tendencias de Gastos (Media Móvil de 7 Días)")
-ax.set_xlabel("Fecha")
-ax.set_ylabel("Monto Promedio")
-ax.legend(title="Categoría")
-st.pyplot(fig)
+# Sección 2.1: Evaluación de relevancia
+st.subheader("Evaluación de Relevancia 🔍")
 
-# Detección de anomalías por desviación estándar
-st.write("### Análisis de Anomalías Avanzadas")
-desviacion = df_filtrado["Monto"].std()
-media = df_filtrado["Monto"].mean()
-limite_superior = media + 3 * desviacion
-limite_inferior = max(media - 3 * desviacion, 0)  # Evitar montos negativos
-
-st.markdown(f"""
-- **Límite Superior de Anomalías**: ${limite_superior:,.2f}  
-- **Límite Inferior de Anomalías**: ${limite_inferior:,.2f}
+# Definir criterios para evaluar la relevancia
+st.write("""
+La relevancia de las cotizaciones se calcula basándose en criterios como:
+- Monto total (mayores montos tienen mayor relevancia).
+- Complejidad (las cotizaciones de baja complejidad son más relevantes por ser rápidas de procesar).
+- Estatus actual (pendientes tienen mayor prioridad).
 """)
 
-df_anomalías = df_filtrado[
-    (df_filtrado["Monto"] > limite_superior) | (df_filtrado["Monto"] < limite_inferior)
+# Función para evaluar relevancia (puntuación simple)
+def calcular_relevancia(row):
+    puntuacion = 0
+    # Asignar peso según monto
+    if row["Monto"] > 30000:
+        puntuacion += 5
+    elif row["Monto"] > 15000:
+        puntuacion += 3
+    else:
+        puntuacion += 1
+    # Asignar peso según complejidad
+    if row["Complejidad"] == "Baja":
+        puntuacion += 5
+    elif row["Complejidad"] == "Media":
+        puntuacion += 3
+    else:
+        puntuacion += 1
+    # Asignar peso según estatus
+    if row["Estatus"] == "Pendiente":
+        puntuacion += 5
+    elif row["Estatus"] == "Aceptada":
+        puntuacion += 3
+    else:
+        puntuacion += 0
+    return puntuacion
+
+# Agregar columna de relevancia al DataFrame
+cotizaciones_df["Relevancia"] = cotizaciones_df.apply(calcular_relevancia, axis=1)
+
+# Mostrar las cotizaciones ordenadas por relevancia
+st.write("### Cotizaciones ordenadas por relevancia:")
+cotizaciones_ordenadas = cotizaciones_df.sort_values(by="Relevancia", ascending=False)
+st.dataframe(cotizaciones_ordenadas)
+
+# Visualización de relevancia (gráfico de barras)
+st.write("### Relevancia de las cotizaciones:")
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.bar(cotizaciones_ordenadas["ID_Cotización"], cotizaciones_ordenadas["Relevancia"], color="#FFA07A")
+ax.set_xlabel("ID Cotización")
+ax.set_ylabel("Relevancia")
+ax.set_title("Puntuación de Relevancia por Cotización")
+st.pyplot(fig)
+
+# Sección 2.2: Gestión de roles de usuario
+st.subheader("Gestión de Roles y Permisos 👥")
+
+# Simular una lista de usuarios y roles
+usuarios_roles = pd.DataFrame({
+    "Usuario": ["admin", "analista1", "analista2", "cliente1"],
+    "Rol": ["Administrador", "Analista", "Analista", "Cliente"],
+})
+
+# Mostrar usuarios y roles actuales
+st.write("### Usuarios y Roles Actuales:")
+st.dataframe(usuarios_roles)
+
+# Seleccionar usuario para modificar
+st.write("### Modificar Roles:")
+usuario_seleccionado = st.selectbox("Selecciona un usuario", usuarios_roles["Usuario"])
+
+# Asignar nuevo rol
+nuevo_rol = st.selectbox(
+    "Selecciona un nuevo rol para el usuario:",
+    ["Administrador", "Analista", "Cliente"]
+)
+
+# Botón para aplicar cambios
+if st.button("Actualizar Rol"):
+    usuarios_roles.loc[usuarios_roles["Usuario"] == usuario_seleccionado, "Rol"] = nuevo_rol
+    st.success(f"El rol del usuario {usuario_seleccionado} ha sido actualizado a {nuevo_rol}.")
+    st.dataframe(usuarios_roles)
+
+# Sección 2.3: Filtros interactivos
+st.subheader("Filtros Interactivos 🔧")
+
+# Filtro por estatus
+estatus_seleccionado = st.multiselect(
+    "Selecciona los estatus a mostrar:",
+    cotizaciones_df["Estatus"].unique(),
+    default=cotizaciones_df["Estatus"].unique()
+)
+
+# Filtro por complejidad
+complejidad_seleccionada = st.multiselect(
+    "Selecciona las complejidades a mostrar:",
+    cotizaciones_df["Complejidad"].unique(),
+    default=cotizaciones_df["Complejidad"].unique()
+)
+
+# Aplicar filtros al DataFrame
+cotizaciones_filtradas = cotizaciones_df[
+    (cotizaciones_df["Estatus"].isin(estatus_seleccionado)) &
+    (cotizaciones_df["Complejidad"].isin(complejidad_seleccionada))
 ]
 
-if not df_anomalías.empty:
-    st.warning(f"⚠️ Se detectaron {len(df_anomalías)} transacciones fuera del rango esperado.")
-    st.dataframe(df_anomalías)
-else:
-    st.success("✅ No se detectaron anomalías en los datos filtrados según los límites calculados.")
+st.write("### Cotizaciones Filtradas:")
+st.dataframe(cotizaciones_filtradas)
 
-# Gráfico de anomalías resaltadas
-st.write("### Visualización de Anomalías Detectadas")
-fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(df_filtrado["Fecha"], df_filtrado["Monto"], label="Monto")
-ax.axhline(limite_superior, color="red", linestyle="--", label="Límite Superior")
-ax.axhline(limite_inferior, color="blue", linestyle="--", label="Límite Inferior")
-if not df_anomalías.empty:
-    anomalías_fechas = df_anomalías["Fecha"]
-    anomalías_montos = df_anomalías["Monto"]
-    ax.scatter(anomalías_fechas, anomalías_montos, color="orange", label="Anomalías Detectadas")
-ax.set_title("Anomalías en Gastos a lo Largo del Tiempo")
-ax.set_xlabel("Fecha")
+# Descarga de datos filtrados
+@st.cache_data
+def convertir_csv(df):
+    return df.to_csv(index=False).encode('utf-8')
+
+csv = convertir_csv(cotizaciones_filtradas)
+st.download_button(
+    label="Descargar Cotizaciones Filtradas 📥",
+    data=csv,
+    file_name="cotizaciones_filtradas.csv",
+    mime="text/csv",
+)
+# Parte 3: Creación de reportes y simulaciones
+st.header("Creación de Reportes y Simulaciones 📑")
+
+# Sección 3.1: Generación de reportes
+st.subheader("Generación de Reportes 📊")
+
+# Opción para seleccionar columnas a incluir en el reporte
+st.write("### Personaliza tu reporte:")
+columnas_seleccionadas = st.multiselect(
+    "Selecciona las columnas que deseas incluir en el reporte:",
+    cotizaciones_df.columns,
+    default=["ID_Cotización", "Cliente", "Monto", "Estatus"]
+)
+
+# Generar reporte en formato PDF o CSV
+@st.cache_data
+def generar_csv_reporte(df, columnas):
+    return df[columnas].to_csv(index=False).encode('utf-8')
+
+csv_reporte = generar_csv_reporte(cotizaciones_df, columnas_seleccionadas)
+st.download_button(
+    label="Descargar Reporte en CSV 📥",
+    data=csv_reporte,
+    file_name="reporte_cotizaciones.csv",
+    mime="text/csv",
+)
+
+# Generar PDF (simulado con un mensaje)
+if st.button("Generar Reporte en PDF"):
+    st.info("⚠️ La generación de reportes en PDF se está desarrollando. Por ahora, descarga el CSV.")
+
+# Sección 3.2: Simulaciones básicas
+st.subheader("Simulaciones de Escenarios 🧮")
+
+st.write("""
+Las simulaciones permiten proyectar distintos escenarios en función de los datos actuales.
+Prueba a modificar parámetros clave para analizar su impacto.
+""")
+
+# Parámetros de simulación
+st.write("### Parámetros de Simulación:")
+factor_crecimiento = st.slider(
+    "Tasa de crecimiento estimada (%):", min_value=0, max_value=100, value=10, step=5
+)
+
+# Aplicar simulación al monto de las cotizaciones
+cotizaciones_df["Monto_Proyectado"] = cotizaciones_df["Monto"] * (1 + factor_crecimiento / 100)
+
+# Mostrar resultados de la simulación
+st.write("### Resultados de la Simulación:")
+st.dataframe(cotizaciones_df[["ID_Cotización", "Cliente", "Monto", "Monto_Proyectado"]])
+
+# Visualizar comparación entre montos originales y proyectados
+st.write("### Comparación Gráfica:")
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.bar(cotizaciones_df["ID_Cotización"], cotizaciones_df["Monto"], label="Monto Original", alpha=0.7, color="#1f77b4")
+ax.bar(cotizaciones_df["ID_Cotización"], cotizaciones_df["Monto_Proyectado"], label="Monto Proyectado", alpha=0.7, color="#ff7f0e")
+ax.set_xlabel("ID Cotización")
 ax.set_ylabel("Monto")
+ax.set_title("Comparación de Montos Originales vs Proyectados")
 ax.legend()
 st.pyplot(fig)
 
-# Histograma de distribución de montos
-st.write("### Distribución de Montos")
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.histplot(df_filtrado["Monto"], bins=30, kde=True, color="green", ax=ax)
-ax.axvline(media, color="red", linestyle="--", label="Media")
-ax.axvline(limite_superior, color="orange", linestyle="--", label="Límite Superior (Anomalías)")
-ax.axvline(limite_inferior, color="blue", linestyle="--", label="Límite Inferior (Anomalías)")
-ax.set_title("Distribución de Montos con Límites de Anomalías")
-ax.set_xlabel("Monto")
-ax.set_ylabel("Frecuencia")
-ax.legend()
-st.pyplot(fig)
+# Sección 3.3: Resumen y visualizaciones adicionales
+st.subheader("Resumen y Visualizaciones 🔎")
 
-# Tabla de resumen estadístico
-st.write("### Resumen Estadístico de Datos Filtrados")
-resumen_estadistico = df_filtrado[["Monto"]].describe().T
-resumen_estadistico["Varianza"] = df_filtrado["Monto"].var()
-resumen_estadistico["Desviación Estándar"] = df_filtrado["Monto"].std()
-st.table(resumen_estadistico)
+# Resumen de estadísticas clave
+st.write("### Estadísticas Clave:")
+st.write(cotizaciones_df[["Monto", "Monto_Proyectado"]].describe())
 
-# Proporción de anomalías por categoría
-st.write("### Proporción de Anomalías por Categoría")
-if not df_anomalías.empty:
-    proporciones = df_anomalías["Categoría"].value_counts(normalize=True)
-    fig, ax = plt.subplots(figsize=(8, 5))
-    proporciones.plot.pie(autopct="%1.1f%%", startangle=90, ax=ax, colormap="viridis")
-    ax.set_ylabel("")
-    ax.set_title("Porcentaje de Anomalías por Categoría")
-    st.pyplot(fig)
-else:
-    st.info("No hay anomalías para calcular proporciones por categoría.")
-# Parte 3: Análisis interactivo y predicción básica
-
-# Filtro interactivo por categoría y rango de fechas
-st.write("### Filtro Interactivo por Categoría y Fechas")
-categorias_unicas = df_filtrado["Categoría"].unique()
-categorias_seleccionadas = st.multiselect("Selecciona las categorías a analizar:", options=categorias_unicas, default=categorias_unicas)
-rango_fechas = st.date_input("Selecciona el rango de fechas:", [df_filtrado["Fecha"].min(), df_filtrado["Fecha"].max()])
-
-df_interactivo = df_filtrado[
-    (df_filtrado["Categoría"].isin(categorias_seleccionadas)) &
-    (df_filtrado["Fecha"] >= pd.Timestamp(rango_fechas[0])) &
-    (df_filtrado["Fecha"] <= pd.Timestamp(rango_fechas[1]))
-]
-
-st.write("### Datos Filtrados:")
-st.dataframe(df_interactivo)
-
-# Gráfico de caja (boxplot) para analizar distribución de montos por categoría
-st.write("### Distribución de Montos por Categoría (Boxplot)")
-fig, ax = plt.subplots(figsize=(12, 6))
-sns.boxplot(data=df_interactivo, x="Categoría", y="Monto", ax=ax, palette="Set2")
-ax.set_title("Distribución de Montos por Categoría")
-ax.set_xlabel("Categoría")
-ax.set_ylabel("Monto")
-ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
-st.pyplot(fig)
-
-# Clustering de gastos por categoría (KMeans)
-st.write("### Clustering de Gastos por Categoría")
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-
-# Preprocesamiento
-scaler = StandardScaler()
-datos_cluster = df_interactivo.groupby("Categoría")["Monto"].sum().reset_index()
-datos_cluster["Monto Escalado"] = scaler.fit_transform(datos_cluster[["Monto"]])
-
-# Aplicar KMeans
-kmeans = KMeans(n_clusters=3, random_state=42)
-datos_cluster["Cluster"] = kmeans.fit_predict(datos_cluster[["Monto Escalado"]])
-
-# Mostrar resultados
-fig, ax = plt.subplots(figsize=(8, 6))
-sns.barplot(data=datos_cluster, x="Categoría", y="Monto", hue="Cluster", dodge=False, palette="tab10", ax=ax)
-ax.set_title("Clusters de Categorías Basados en Montos")
-ax.set_xlabel("Categoría")
-ax.set_ylabel("Monto Total")
-ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
-st.pyplot(fig)
-
-# Predicción básica de gastos futuros usando Prophet
-st.write("### Predicción de Gastos Futuros (Modelo Prophet)")
-from prophet import Prophet
-
-# Preparar datos para Prophet
-df_prediccion = df_filtrado.groupby("Fecha").sum()["Monto"].reset_index()
-df_prediccion.columns = ["ds", "y"]
-
-modelo = Prophet()
-modelo.fit(df_prediccion)
-
-# Hacer predicción a futuro
-futuro = modelo.make_future_dataframe(periods=30)  # 30 días adicionales
-pronostico = modelo.predict(futuro)
-
-# Gráfico de predicción
-fig = modelo.plot(pronostico)
-plt.title("Predicción de Gastos Futuros (30 Días)")
-st.pyplot(fig)
-
-# Descomposición de componentes del modelo Prophet
-st.write("### Componentes de Predicción (Prophet)")
-fig2 = modelo.plot_components(pronostico)
+# Gráfico de torta: Distribución por estatus
+st.write("### Distribución de Cotizaciones por Estatus:")
+fig2, ax2 = plt.subplots()
+estatus_counts = cotizaciones_df["Estatus"].value_counts()
+ax2.pie(estatus_counts, labels=estatus_counts.index, autopct="%1.1f%%", startangle=90, colors=plt.cm.Paired.colors)
+ax2.set_title("Distribución de Estatus")
 st.pyplot(fig2)
 
-# Heatmap de correlaciones entre categorías y montos
-st.write("### Heatmap de Correlaciones")
-df_correlacion = pd.pivot_table(df_interactivo, values="Monto", index="Fecha", columns="Categoría", aggfunc="sum").fillna(0)
-correlaciones = df_correlacion.corr()
+# Mapa interactivo (placeholder si se requiere geolocalización)
+st.write("### Mapa Interactivo 🌍")
+st.map(pd.DataFrame({"lat": [19.4326], "lon": [-99.1332]}))  # Ejemplo: CDMX
 
-fig, ax = plt.subplots(figsize=(10, 8))
-sns.heatmap(correlaciones, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
-ax.set_title("Mapa de Calor de Correlaciones entre Categorías")
-st.pyplot(fig)
+# Sección 3.4: Interactividad adicional
+st.subheader("Panel Interactivo 💡")
 
-# Exportar datos interactivos filtrados
-st.write("### Exportar Datos Filtrados")
-csv_interactivo = df_interactivo.to_csv(index=False)
-st.download_button("Descargar Datos Filtrados como CSV", csv_interactivo, file_name="datos_filtrados.csv", mime="text/csv")
+# Campo de búsqueda para filtrar cotizaciones por cliente
+cliente_busqueda = st.text_input("Buscar Cotización por Cliente:")
+resultado_busqueda = cotizaciones_df[cotizaciones_df["Cliente"].str.contains(cliente_busqueda, case=False, na=False)]
+if not resultado_busqueda.empty:
+    st.write("### Resultados de la Búsqueda:")
+    st.dataframe(resultado_busqueda)
+else:
+    st.warning("No se encontraron resultados para el cliente ingresado.")
+
+# Botón de finalización
+st.write("### Finalizar 🚀")
+if st.button("Confirmar y Guardar Cambios"):
+    st.success("Todos los cambios han sido guardados correctamente.")
