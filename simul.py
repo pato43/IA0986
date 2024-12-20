@@ -1,310 +1,280 @@
-# Parte 1: Configuración inicial y visualización básica en Streamlit
+# Parte 1: Configuración inicial y visualización básica
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.pyplot as plt
+from datetime import datetime
 
-# Configuración de la página en Streamlit
+# Configuración inicial del dashboard
 st.set_page_config(
-    page_title="Plataforma Holman Service",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Dashboard de Detección de Anomalías",
+    page_icon="📊",
+    layout="wide"
 )
 
-# Título principal de la aplicación
-st.title("Plataforma Digital Holman Service")
-st.subheader("Gestión de Procesos: Levantamiento, Cotización y Seguimiento")
-
-# Introducción para los usuarios
+# Título y descripción
+st.title("📊 Dashboard de Detección de Anomalías en Gastos e Inventarios")
 st.markdown("""
-Esta plataforma está diseñada para ayudar en la gestión integral de proyectos, desde el levantamiento inicial hasta la entrega y seguimiento. 
-Con un enfoque en la optimización, permite visualizar datos clave y tomar decisiones basadas en análisis detallados.
+Bienvenido al sistema interactivo para la detección de procesos irregulares en datos de gastos e inventarios.
+Utiliza filtros dinámicos, gráficos avanzados y alertas para identificar posibles desviaciones.
 """)
 
-# Simulación de datos iniciales para demostración
-st.sidebar.header("Cargar Datos")
-data_source = st.sidebar.selectbox(
-    "Selecciona el origen de los datos",
-    ("Datos simulados", "Subir archivo CSV")
-)
-
-if data_source == "Datos simulados":
-    # Generación de datos simulados para mostrar cómo funcionará la plataforma
+# Carga de datos simulados
+@st.cache
+def cargar_datos():
     np.random.seed(42)
-    data = pd.DataFrame({
-        "Fase": np.random.choice(
-            ["Levantamiento", "Cotización", "Compra de materiales", "Ejecución", "Entrega"],
-            size=100
-        ),
-        "Duración (días)": np.random.randint(1, 30, size=100),
-        "Costo ($)": np.random.uniform(1000, 50000, size=100),
-        "Estatus": np.random.choice(["Pendiente", "En Proceso", "Completado"], size=100)
+    fechas = pd.date_range(start="2024-01-01", end="2024-12-31", freq="D")
+    datos = pd.DataFrame({
+        "Fecha": fechas,
+        "Categoría": np.random.choice(["Inventario", "Marketing", "Operaciones", "Otros"], size=len(fechas)),
+        "Monto": np.random.normal(50000, 15000, size=len(fechas)).clip(min=0),
+        "ID_Transacción": [f"T-{i}" for i in range(len(fechas))]
     })
-    st.write("Se están utilizando datos simulados para esta demostración:")
-else:
-    # Cargar datos desde un archivo CSV proporcionado por el usuario
-    uploaded_file = st.sidebar.file_uploader("Sube un archivo CSV", type=["csv"])
-    if uploaded_file is not None:
-        data = pd.read_csv(uploaded_file)
-        st.success("Datos cargados correctamente")
-    else:
-        st.warning("Por favor, sube un archivo CSV para continuar.")
-        data = pd.DataFrame()  # Evitar errores si no hay datos
+    return datos
 
-# Mostrar los datos cargados
-if not data.empty:
-    st.dataframe(data, use_container_width=True)
-else:
-    st.warning("No hay datos para mostrar.")
+# Llamada a la función para cargar los datos
+df = cargar_datos()
 
-# Visualización inicial: Distribución de las fases
-if not data.empty:
-    st.subheader("Distribución de las Fases del Proyecto")
-    phase_counts = data["Fase"].value_counts()
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(x=phase_counts.index, y=phase_counts.values, palette="viridis", ax=ax)
-    ax.set_title("Número de Actividades por Fase")
-    ax.set_ylabel("Número de Actividades")
-    ax.set_xlabel("Fase")
-    st.pyplot(fig)
-
-# Sección adicional: Filtrado interactivo en la barra lateral
+# Visualización inicial de los datos cargados
 st.sidebar.header("Filtros")
-fase_filtrada = st.sidebar.multiselect(
-    "Selecciona las fases a visualizar",
-    options=data["Fase"].unique() if not data.empty else [],
-    default=data["Fase"].unique() if not data.empty else []
+st.sidebar.markdown("Ajusta los parámetros para analizar los datos.")
+
+# Filtros interactivos
+categorias = st.sidebar.multiselect(
+    "Selecciona Categorías:",
+    options=df["Categoría"].unique(),
+    default=df["Categoría"].unique()
 )
 
-if fase_filtrada and not data.empty:
-    data_filtrada = data[data["Fase"].isin(fase_filtrada)]
-    st.subheader("Datos Filtrados")
-    st.dataframe(data_filtrada)
-else:
-    st.warning("Selecciona al menos una fase para mostrar los datos filtrados.")
-
-# Nota final en esta sección
-st.info("Recuerda: Esta es solo la primera sección de la plataforma. ¡Pronto más funcionalidades!")
-# Parte 2: Análisis avanzado y cronograma interactivo en Streamlit
-
-# Análisis de costos totales por fase
-if not data.empty:
-    st.subheader("Análisis de Costos por Fase")
-    cost_analysis = data.groupby("Fase")["Costo ($)"].sum().sort_values(ascending=False)
-    
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.barplot(x=cost_analysis.index, y=cost_analysis.values, palette="coolwarm", ax=ax)
-    ax.set_title("Costo Total por Fase")
-    ax.set_ylabel("Costo Total ($)")
-    ax.set_xlabel("Fase")
-    st.pyplot(fig)
-else:
-    st.warning("No hay datos para realizar el análisis de costos.")
-
-# Cronograma interactivo por duración
-if not data.empty:
-    st.subheader("Cronograma de Duración por Fase")
-    gantt_data = data.copy()
-    gantt_data["Inicio"] = pd.to_datetime("2024-01-01") + pd.to_timedelta(
-        np.cumsum(gantt_data["Duración (días)"].shift(fill_value=0)), unit="D"
-    )
-    gantt_data["Fin"] = gantt_data["Inicio"] + pd.to_timedelta(gantt_data["Duración (días)"], unit="D")
-    
-    # Crear un gráfico de Gantt
-    fig, ax = plt.subplots(figsize=(12, 6))
-    for i, row in gantt_data.iterrows():
-        ax.barh(row["Fase"], row["Duración (días)"], left=row["Inicio"].toordinal(), color="teal")
-    ax.set_xlabel("Fecha")
-    ax.set_title("Cronograma de Duración por Fase")
-    st.pyplot(fig)
-else:
-    st.warning("No hay datos para generar el cronograma interactivo.")
-
-# Análisis interactivo de costos y duración
-st.sidebar.header("Análisis Comparativo")
-analisis_seleccion = st.sidebar.selectbox(
-    "Selecciona el análisis a realizar:",
-    ("Duración vs. Costos", "Distribución de Estatus", "Análisis de Outliers")
+rango_montos = st.sidebar.slider(
+    "Rango de Monto:",
+    min_value=int(df["Monto"].min()),
+    max_value=int(df["Monto"].max()),
+    value=(int(df["Monto"].min()), int(df["Monto"].max()))
 )
 
-if not data.empty:
-    if analisis_seleccion == "Duración vs. Costos":
-        st.subheader("Relación entre Duración y Costos")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.scatterplot(
-            x="Duración (días)", 
-            y="Costo ($)", 
-            hue="Fase", 
-            size="Costo ($)",
-            sizes=(20, 200),
-            data=data,
-            palette="viridis",
-            ax=ax
-        )
-        ax.set_title("Duración vs. Costos")
-        st.pyplot(fig)
-    elif analisis_seleccion == "Distribución de Estatus":
-        st.subheader("Distribución de Estatus")
-        status_counts = data["Estatus"].value_counts()
-        
-        fig, ax = plt.subplots(figsize=(8, 4))
-        sns.barplot(x=status_counts.index, y=status_counts.values, palette="pastel", ax=ax)
-        ax.set_title("Distribución de Estatus")
-        ax.set_ylabel("Cantidad")
-        ax.set_xlabel("Estatus")
-        st.pyplot(fig)
-    elif analisis_seleccion == "Análisis de Outliers":
-        st.subheader("Análisis de Outliers en Costos")
-        fig, ax = plt.subplots(figsize=(8, 4))
-        sns.boxplot(data=data, x="Fase", y="Costo ($)", palette="Set3", ax=ax)
-        ax.set_title("Outliers en Costos por Fase")
-        st.pyplot(fig)
-else:
-    st.warning("No hay datos para realizar el análisis comparativo.")
+rango_fechas = st.sidebar.date_input(
+    "Selecciona Rango de Fechas:",
+    [df["Fecha"].min(), df["Fecha"].max()]
+)
 
-# Visualización de tendencias acumulativas
-if not data.empty:
-    st.subheader("Tendencia Acumulativa de Costos")
-    trend_data = data.groupby("Fase").agg(
-        {"Costo ($)": "sum", "Duración (días)": "sum"}
-    ).cumsum()
-    
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.lineplot(data=trend_data, markers=True, ax=ax)
-    ax.set_title("Tendencia Acumulativa de Costos y Duración")
-    ax.set_ylabel("Valores Acumulativos")
-    ax.set_xlabel("Fase")
-    st.pyplot(fig)
-else:
-    st.warning("No hay datos para mostrar tendencias acumulativas.")
+# Filtrado de los datos según los parámetros seleccionados
+df_filtrado = df[
+    (df["Categoría"].isin(categorias)) &
+    (df["Monto"].between(rango_montos[0], rango_montos[1])) &
+    (df["Fecha"].between(rango_fechas[0], rango_fechas[1]))
+]
 
-# Adición de descargas personalizadas
-st.sidebar.header("Opciones de Descarga")
-descargar = st.sidebar.checkbox("Habilitar descarga de datos")
-if descargar:
-    csv = data.to_csv(index=False).encode("utf-8")
-    st.sidebar.download_button(
-        label="Descargar datos en CSV",
-        data=csv,
-        file_name="datos_proyecto.csv",
-        mime="text/csv"
-    )
-    st.success("Descarga habilitada correctamente.")
-else:
-    st.sidebar.info("Habilita la descarga desde esta sección.")
-# Parte 3: Optimización, Simulación y Análisis Predictivo
+# Mostrar datos filtrados
+st.write("### Datos Filtrados")
+st.dataframe(df_filtrado)
 
-# Optimización de recursos y simulación de costos
-if not data.empty:
-    st.subheader("Optimización de Recursos y Simulación")
-    
-    # Parámetros de simulación
-    st.sidebar.header("Parámetros de Simulación")
-    incremento_costos = st.sidebar.slider(
-        "Incremento esperado en costos (%)", min_value=0, max_value=50, value=10, step=5
-    )
-    reducción_duración = st.sidebar.slider(
-        "Reducción esperada en duración (%)", min_value=0, max_value=30, value=5, step=5
-    )
-    
-    # Simulación de nuevos valores
-    data_simulada = data.copy()
-    data_simulada["Costo Simulado ($)"] = data_simulada["Costo ($)"] * (1 + incremento_costos / 100)
-    data_simulada["Duración Simulada (días)"] = data_simulada["Duración (días)"] * (1 - reducción_duración / 100)
-    
-    st.write("Datos Simulados:")
-    st.dataframe(data_simulada)
-    
-    # Gráfico de comparación
-    fig, ax = plt.subplots(1, 2, figsize=(14, 6))
-    sns.barplot(
-        x="Fase", y="Costo Simulado ($)", data=data_simulada, palette="cool", ax=ax[0]
-    )
-    ax[0].set_title("Costos Simulados por Fase")
-    ax[0].set_ylabel("Costo Simulado ($)")
-    ax[0].set_xlabel("Fase")
-    
-    sns.barplot(
-        x="Fase", y="Duración Simulada (días)", data=data_simulada, palette="Blues", ax=ax[1]
-    )
-    ax[1].set_title("Duración Simulada por Fase")
-    ax[1].set_ylabel("Duración Simulada (días)")
-    ax[1].set_xlabel("Fase")
-    
-    st.pyplot(fig)
-else:
-    st.warning("No hay datos para realizar simulaciones de costos y duración.")
+# Métricas clave
+st.write("### Resumen de Métricas Clave")
+col1, col2, col3 = st.columns(3)
 
-# Modelo de Machine Learning para predicción de costos
-if not data.empty:
-    st.subheader("Predicción de Costos con Machine Learning")
-    
-    # Preparación de datos para el modelo
-    from sklearn.model_selection import train_test_split
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.metrics import mean_absolute_error, r2_score
-    
-    features = ["Duración (días)", "Fase_codificada"]
-    data["Fase_codificada"] = data["Fase"].astype("category").cat.codes
-    X = data[features]
-    y = data["Costo ($)"]
-    
-    # División en datos de entrenamiento y prueba
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Entrenamiento del modelo
-    modelo = RandomForestRegressor(random_state=42)
-    modelo.fit(X_train, y_train)
-    
-    # Predicción y evaluación
-    y_pred = modelo.predict(X_test)
-    mae = mean_absolute_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
-    
-    st.write(f"**Error Absoluto Medio (MAE):** {mae:.2f}")
-    st.write(f"**R² Score:** {r2:.2f}")
-    
-    # Predicción interactiva
-    st.sidebar.header("Predicción Interactiva")
-    input_duración = st.sidebar.slider(
-        "Duración estimada (días)", min_value=1, max_value=365, value=30
-    )
-    input_fase = st.sidebar.selectbox(
-        "Fase del proyecto", data["Fase"].unique()
-    )
-    fase_codificada = data.loc[data["Fase"] == input_fase, "Fase_codificada"].values[0]
-    
-    # Realizar predicción con los inputs
-    nueva_predicción = modelo.predict([[input_duración, fase_codificada]])[0]
-    st.write(f"**Predicción de Costo:** ${nueva_predicción:.2f}")
-else:
-    st.warning("No hay suficientes datos para entrenar el modelo de Machine Learning.")
+with col1:
+    total_transacciones = len(df_filtrado)
+    st.metric("Total de Transacciones", total_transacciones)
 
-# Exportación del modelo entrenado
-st.sidebar.header("Exportar Modelo")
-exportar_modelo = st.sidebar.checkbox("Habilitar exportación del modelo")
-if exportar_modelo:
-    import pickle
-    modelo_serializado = pickle.dumps(modelo)
-    st.sidebar.download_button(
-        label="Descargar modelo entrenado",
-        data=modelo_serializado,
-        file_name="modelo_predicción.pkl",
-        mime="application/octet-stream"
-    )
-    st.success("Modelo exportado correctamente.")
-else:
-    st.sidebar.info("Habilita la exportación del modelo desde esta sección.")
+with col2:
+    total_monto = df_filtrado["Monto"].sum()
+    st.metric("Monto Total Filtrado", f"${total_monto:,.2f}")
 
-# Conclusión
-st.subheader("Resumen Final")
-st.write("""
-Este proyecto permite:
-- Analizar costos y tiempos detalladamente.
-- Simular escenarios futuros con parámetros personalizables.
-- Implementar un modelo de Machine Learning para predicciones de costos.
-- Exportar datos y modelos para aplicaciones futuras.
+with col3:
+    promedio_monto = df_filtrado["Monto"].mean()
+    st.metric("Monto Promedio", f"${promedio_monto:,.2f}")
+
+# Alertas básicas de anomalías
+st.write("### Alertas de Anomalías")
+umbral_alto = 100000  # Definimos un umbral alto para identificar valores extremos
+anomalías = df_filtrado[df_filtrado["Monto"] > umbral_alto]
+
+if not anomalías.empty:
+    st.warning(f"⚠️ Se han detectado {len(anomalías)} transacciones sospechosas con montos superiores a ${umbral_alto}.")
+    st.dataframe(anomalías)
+else:
+    st.success("✅ No se detectaron transacciones sospechosas según el umbral definido.")
+
+# Gráfico de montos por categoría
+st.write("### Gráfico de Montos por Categoría")
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.boxplot(data=df_filtrado, x="Categoría", y="Monto", ax=ax, palette="viridis")
+ax.set_title("Distribución de Montos por Categoría")
+ax.set_xlabel("Categoría")
+ax.set_ylabel("Monto")
+st.pyplot(fig)
+# Parte 2: Visualización avanzada y análisis de anomalías
+
+# Gráfico de tendencias por categoría
+st.write("### Tendencias de Gastos por Categoría a lo Largo del Tiempo")
+fig, ax = plt.subplots(figsize=(12, 6))
+for categoria in df_filtrado["Categoría"].unique():
+    datos_categoria = df_filtrado[df_filtrado["Categoría"] == categoria]
+    ax.plot(datos_categoria["Fecha"], datos_categoria["Monto"].rolling(window=7).mean(), label=categoria)
+ax.set_title("Tendencias de Gastos (Media Móvil de 7 Días)")
+ax.set_xlabel("Fecha")
+ax.set_ylabel("Monto Promedio")
+ax.legend(title="Categoría")
+st.pyplot(fig)
+
+# Detección de anomalías por desviación estándar
+st.write("### Análisis de Anomalías Avanzadas")
+desviacion = df_filtrado["Monto"].std()
+media = df_filtrado["Monto"].mean()
+limite_superior = media + 3 * desviacion
+limite_inferior = max(media - 3 * desviacion, 0)  # Evitar montos negativos
+
+st.markdown(f"""
+- **Límite Superior de Anomalías**: ${limite_superior:,.2f}  
+- **Límite Inferior de Anomalías**: ${limite_inferior:,.2f}
 """)
-st.balloons()
+
+df_anomalías = df_filtrado[
+    (df_filtrado["Monto"] > limite_superior) | (df_filtrado["Monto"] < limite_inferior)
+]
+
+if not df_anomalías.empty:
+    st.warning(f"⚠️ Se detectaron {len(df_anomalías)} transacciones fuera del rango esperado.")
+    st.dataframe(df_anomalías)
+else:
+    st.success("✅ No se detectaron anomalías en los datos filtrados según los límites calculados.")
+
+# Gráfico de anomalías resaltadas
+st.write("### Visualización de Anomalías Detectadas")
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(df_filtrado["Fecha"], df_filtrado["Monto"], label="Monto")
+ax.axhline(limite_superior, color="red", linestyle="--", label="Límite Superior")
+ax.axhline(limite_inferior, color="blue", linestyle="--", label="Límite Inferior")
+if not df_anomalías.empty:
+    anomalías_fechas = df_anomalías["Fecha"]
+    anomalías_montos = df_anomalías["Monto"]
+    ax.scatter(anomalías_fechas, anomalías_montos, color="orange", label="Anomalías Detectadas")
+ax.set_title("Anomalías en Gastos a lo Largo del Tiempo")
+ax.set_xlabel("Fecha")
+ax.set_ylabel("Monto")
+ax.legend()
+st.pyplot(fig)
+
+# Histograma de distribución de montos
+st.write("### Distribución de Montos")
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.histplot(df_filtrado["Monto"], bins=30, kde=True, color="green", ax=ax)
+ax.axvline(media, color="red", linestyle="--", label="Media")
+ax.axvline(limite_superior, color="orange", linestyle="--", label="Límite Superior (Anomalías)")
+ax.axvline(limite_inferior, color="blue", linestyle="--", label="Límite Inferior (Anomalías)")
+ax.set_title("Distribución de Montos con Límites de Anomalías")
+ax.set_xlabel("Monto")
+ax.set_ylabel("Frecuencia")
+ax.legend()
+st.pyplot(fig)
+
+# Tabla de resumen estadístico
+st.write("### Resumen Estadístico de Datos Filtrados")
+resumen_estadistico = df_filtrado[["Monto"]].describe().T
+resumen_estadistico["Varianza"] = df_filtrado["Monto"].var()
+resumen_estadistico["Desviación Estándar"] = df_filtrado["Monto"].std()
+st.table(resumen_estadistico)
+
+# Proporción de anomalías por categoría
+st.write("### Proporción de Anomalías por Categoría")
+if not df_anomalías.empty:
+    proporciones = df_anomalías["Categoría"].value_counts(normalize=True)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    proporciones.plot.pie(autopct="%1.1f%%", startangle=90, ax=ax, colormap="viridis")
+    ax.set_ylabel("")
+    ax.set_title("Porcentaje de Anomalías por Categoría")
+    st.pyplot(fig)
+else:
+    st.info("No hay anomalías para calcular proporciones por categoría.")
+# Parte 3: Análisis interactivo y predicción básica
+
+# Filtro interactivo por categoría y rango de fechas
+st.write("### Filtro Interactivo por Categoría y Fechas")
+categorias_unicas = df_filtrado["Categoría"].unique()
+categorias_seleccionadas = st.multiselect("Selecciona las categorías a analizar:", options=categorias_unicas, default=categorias_unicas)
+rango_fechas = st.date_input("Selecciona el rango de fechas:", [df_filtrado["Fecha"].min(), df_filtrado["Fecha"].max()])
+
+df_interactivo = df_filtrado[
+    (df_filtrado["Categoría"].isin(categorias_seleccionadas)) &
+    (df_filtrado["Fecha"] >= pd.Timestamp(rango_fechas[0])) &
+    (df_filtrado["Fecha"] <= pd.Timestamp(rango_fechas[1]))
+]
+
+st.write("### Datos Filtrados:")
+st.dataframe(df_interactivo)
+
+# Gráfico de caja (boxplot) para analizar distribución de montos por categoría
+st.write("### Distribución de Montos por Categoría (Boxplot)")
+fig, ax = plt.subplots(figsize=(12, 6))
+sns.boxplot(data=df_interactivo, x="Categoría", y="Monto", ax=ax, palette="Set2")
+ax.set_title("Distribución de Montos por Categoría")
+ax.set_xlabel("Categoría")
+ax.set_ylabel("Monto")
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+st.pyplot(fig)
+
+# Clustering de gastos por categoría (KMeans)
+st.write("### Clustering de Gastos por Categoría")
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+
+# Preprocesamiento
+scaler = StandardScaler()
+datos_cluster = df_interactivo.groupby("Categoría")["Monto"].sum().reset_index()
+datos_cluster["Monto Escalado"] = scaler.fit_transform(datos_cluster[["Monto"]])
+
+# Aplicar KMeans
+kmeans = KMeans(n_clusters=3, random_state=42)
+datos_cluster["Cluster"] = kmeans.fit_predict(datos_cluster[["Monto Escalado"]])
+
+# Mostrar resultados
+fig, ax = plt.subplots(figsize=(8, 6))
+sns.barplot(data=datos_cluster, x="Categoría", y="Monto", hue="Cluster", dodge=False, palette="tab10", ax=ax)
+ax.set_title("Clusters de Categorías Basados en Montos")
+ax.set_xlabel("Categoría")
+ax.set_ylabel("Monto Total")
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+st.pyplot(fig)
+
+# Predicción básica de gastos futuros usando Prophet
+st.write("### Predicción de Gastos Futuros (Modelo Prophet)")
+from prophet import Prophet
+
+# Preparar datos para Prophet
+df_prediccion = df_filtrado.groupby("Fecha").sum()["Monto"].reset_index()
+df_prediccion.columns = ["ds", "y"]
+
+modelo = Prophet()
+modelo.fit(df_prediccion)
+
+# Hacer predicción a futuro
+futuro = modelo.make_future_dataframe(periods=30)  # 30 días adicionales
+pronostico = modelo.predict(futuro)
+
+# Gráfico de predicción
+fig = modelo.plot(pronostico)
+plt.title("Predicción de Gastos Futuros (30 Días)")
+st.pyplot(fig)
+
+# Descomposición de componentes del modelo Prophet
+st.write("### Componentes de Predicción (Prophet)")
+fig2 = modelo.plot_components(pronostico)
+st.pyplot(fig2)
+
+# Heatmap de correlaciones entre categorías y montos
+st.write("### Heatmap de Correlaciones")
+df_correlacion = pd.pivot_table(df_interactivo, values="Monto", index="Fecha", columns="Categoría", aggfunc="sum").fillna(0)
+correlaciones = df_correlacion.corr()
+
+fig, ax = plt.subplots(figsize=(10, 8))
+sns.heatmap(correlaciones, annot=True, cmap="coolwarm", fmt=".2f", ax=ax)
+ax.set_title("Mapa de Calor de Correlaciones entre Categorías")
+st.pyplot(fig)
+
+# Exportar datos interactivos filtrados
+st.write("### Exportar Datos Filtrados")
+csv_interactivo = df_interactivo.to_csv(index=False)
+st.download_button("Descargar Datos Filtrados como CSV", csv_interactivo, file_name="datos_filtrados.csv", mime="text/csv")
