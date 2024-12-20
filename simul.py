@@ -1,276 +1,173 @@
 import streamlit as st
+import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
-from fpdf import FPDF
 
-# Inicializar las variables de sesión si no están definidas
-if "solicitudes" not in st.session_state:
-    st.session_state["solicitudes"] = []  # Para solicitudes de presupuesto
+# Configuración inicial
+st.set_page_config(page_title="Gestión de Cotizaciones", layout="wide")
 
-if "presupuestos" not in st.session_state:
-    st.session_state["presupuestos"] = []  # Para presupuestos aprobados
+# Simulación de datos de cotizaciones
+cotizaciones_data = {
+    "ID_Cotización": [1, 2, 3],
+    "Cliente": ["Cliente A", "Cliente B", "Cliente C"],
+    "Monto": [200000, 500000, 1000000],
+    "Complejidad": ["Media", "Alta", "Baja"],
+    "Estatus": ["Pendiente", "En Proceso", "Finalizada"],
+    "Fecha_Registro": [datetime.now() - timedelta(days=5), 
+                       datetime.now() - timedelta(days=10), 
+                       datetime.now() - timedelta(days=15)],
+    "Días_Restantes": [7, 14, 20]
+}
 
-if "cotizaciones" not in st.session_state:
-    st.session_state["cotizaciones"] = []  # Para cotizaciones
+# Simulación de usuarios
+usuarios_data = {
+    "ID_Usuario": [101, 102, 103],
+    "Nombre": ["Antonia", "Luis Carlos", "Eduardo"],
+    "Rol": ["Coordinador", "Vendedor", "Gerente"],
+    "Acceso": ["Total", "Limitado", "Total"]
+}
 
-if "usuarios" not in st.session_state:
-    st.session_state["usuarios"] = []  # Para gestión de usuarios
+# Convertir a DataFrame
+cotizaciones_df = pd.DataFrame(cotizaciones_data)
+usuarios_df = pd.DataFrame(usuarios_data)
 
-# Configuración del layout principal
-st.set_page_config(
-    page_title="Dashboard Holtmont Services",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# Título principal
+st.title("Sistema de Gestión de Cotizaciones y Monitoreo")
+
+# Mostrar las bases de datos simuladas en la barra lateral
+st.sidebar.markdown("### Bases de Datos Simuladas")
+if st.sidebar.checkbox("Mostrar cotizaciones"):
+    st.sidebar.write(cotizaciones_df)
+
+if st.sidebar.checkbox("Mostrar usuarios"):
+    st.sidebar.write(usuarios_df)
+# Segunda parte del sistema: Agregar funcionalidad interactiva
+
+# Sección 1: Visualización y filtros avanzados
+st.header("Visualización de Cotizaciones")
+
+# Filtro por cliente
+cliente_seleccionado = st.selectbox("Selecciona un cliente para filtrar cotizaciones:", ["Todos"] + cotizaciones_df["Cliente"].tolist())
+if cliente_seleccionado != "Todos":
+    cotizaciones_filtradas = cotizaciones_df[cotizaciones_df["Cliente"] == cliente_seleccionado]
+else:
+    cotizaciones_filtradas = cotizaciones_df
+
+# Filtro por estatus
+estatus_seleccionado = st.multiselect(
+    "Filtrar cotizaciones por estatus:",
+    options=cotizaciones_df["Estatus"].unique(),
+    default=cotizaciones_df["Estatus"].unique()
 )
+cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas["Estatus"].isin(estatus_seleccionado)]
 
-# Barra lateral de navegación
-with st.sidebar:
-    st.title("📊 Holtmont Dashboard DEMO")
-    st.markdown("Navega por las diferentes secciones:")
-    section = st.radio("Secciones", [
-        "Registrar Solicitudes",
-        "Visualizar Solicitudes",
-        "Aprobar Presupuestos",
-        "Gestión de Cotizaciones",
-        "Visualización de Cotizaciones",
-        "Tiempos de Respuesta",
-        "Asignación de Proyectos",
-        "Alertas y Recordatorios",
-        "Roles y Equipos"
-    ])
-    st.markdown("---")
-    st.info("Demo para el primer entrenamiento de IA especializada (1/20)")
+# Mostrar resultados filtrados
+st.write(f"### Cotizaciones para: {cliente_seleccionado if cliente_seleccionado != 'Todos' else 'Todos los clientes'}")
+st.dataframe(cotizaciones_filtradas)
 
-# Función para registrar solicitudes
-def registrar_solicitudes():
-    st.title("📌 Registro de Solicitudes")
-    st.markdown("Ingresa los detalles para registrar una nueva solicitud de presupuesto.")
-    with st.form("Formulario de Solicitud"):
-        nombre = st.text_input("Nombre del Cliente:")
-        descripcion = st.text_area("Descripción de la Solicitud:")
-        presupuesto = st.number_input("Presupuesto Estimado:", min_value=0.0, step=0.1)
-        fecha = st.date_input("Fecha de Solicitud:", value=datetime.today())
-        medio = st.selectbox("Medio de Solicitud:", ["Campo", "Teléfono", "Correo Electrónico"])
-        
-        submitted = st.form_submit_button("Registrar Solicitud")
-        if submitted:
-            if nombre and descripcion and presupuesto > 0:
-                nueva_solicitud = {
-                    "Nombre": nombre,
-                    "Descripción": descripcion,
-                    "Presupuesto": presupuesto,
-                    "Fecha": fecha.strftime("%Y-%m-%d"),
-                    "Medio": medio
-                }
-                st.session_state["solicitudes"].append(nueva_solicitud)
-                st.success("✅ Solicitud registrada exitosamente.")
-            else:
-                st.error("⚠️ Por favor, completa todos los campos correctamente.")
+# Sección 2: Agregar una nueva cotización
+st.header("Agregar Nueva Cotización")
+with st.form("form_agregar_cotizacion"):
+    nuevo_cliente = st.text_input("Nombre del cliente")
+    nuevo_monto = st.number_input("Monto estimado (en MXN)", min_value=1000, step=1000)
+    nueva_complejidad = st.selectbox("Nivel de complejidad", ["Baja", "Media", "Alta"])
+    nuevo_estatus = st.selectbox("Estatus inicial", ["Pendiente", "En Proceso", "Finalizada"])
+    nueva_fecha_registro = st.date_input("Fecha de registro", value=datetime.now())
+    dias_restantes = st.number_input("Días restantes para concluir", min_value=1, step=1)
 
-# Función para visualizar solicitudes
-def visualizar_solicitudes():
-    st.title("📋 Visualización de Solicitudes")
-    if st.session_state["solicitudes"]:
-        for idx, solicitud in enumerate(st.session_state["solicitudes"]):
-            with st.expander(f"Solicitud {idx+1}: {solicitud['Nombre']}"):
-                st.write("**Descripción:**", solicitud["Descripción"])
-                st.write("**Presupuesto Estimado:**", solicitud["Presupuesto"])
-                st.write("**Fecha:**", solicitud["Fecha"])
-                st.write("**Medio:**", solicitud["Medio"])
-    else:
-        st.warning("⚠️ No hay solicitudes registradas.")
+    # Botón para agregar
+    submit_button = st.form_submit_button("Agregar Cotización")
+    if submit_button:
+        nuevo_id = cotizaciones_df["ID_Cotización"].max() + 1
+        nueva_cotizacion = {
+            "ID_Cotización": nuevo_id,
+            "Cliente": nuevo_cliente,
+            "Monto": nuevo_monto,
+            "Complejidad": nueva_complejidad,
+            "Estatus": nuevo_estatus,
+            "Fecha_Registro": nueva_fecha_registro,
+            "Días_Restantes": dias_restantes,
+        }
+        cotizaciones_df = pd.concat([cotizaciones_df, pd.DataFrame([nueva_cotizacion])], ignore_index=True)
+        st.success(f"¡Nueva cotización agregada para {nuevo_cliente}!")
 
-# Función para aprobar presupuestos
-def aprobar_presupuestos():
-    st.title("✅ Aprobación de Presupuestos")
-    if st.session_state["solicitudes"]:
-        for idx, solicitud in enumerate(st.session_state["solicitudes"]):
-            with st.expander(f"Solicitud {idx+1}: {solicitud['Nombre']}"):
-                st.write("**Descripción:**", solicitud["Descripción"])
-                st.write("**Presupuesto Estimado:**", solicitud["Presupuesto"])
-                st.write("**Fecha:**", solicitud["Fecha"])
-                
-                presupuesto_aprobado = st.number_input(f"Presupuesto Aprobado para {solicitud['Nombre']}:",
-                                                       min_value=0.0, step=0.1, key=f"presupuesto_aprobado_{idx}")
-                if st.button(f"Aprobar Solicitud {idx+1}", key=f"aprobar_solicitud_{idx}"):
-                    if presupuesto_aprobado > 0:
-                        nuevo_presupuesto = {
-                            "Nombre": solicitud["Nombre"],
-                            "Descripción": solicitud["Descripción"],
-                            "Presupuesto Aprobado": presupuesto_aprobado,
-                            "Fecha": solicitud["Fecha"],
-                        }
-                        st.session_state["presupuestos"].append(nuevo_presupuesto)
-                        st.success(f"✅ Presupuesto aprobado para la solicitud {idx+1}.")
-    else:
-        st.warning("⚠️ No hay solicitudes para aprobar.")
+# Sección 3: Resumen y estadísticas
+st.header("Resumen y Estadísticas Generales")
+st.write("Aquí se muestran métricas clave relacionadas con las cotizaciones:")
 
-# Lógica para renderizar la sección seleccionada
-if section == "Registrar Solicitudes":
-    registrar_solicitudes()
-elif section == "Visualizar Solicitudes":
-    visualizar_solicitudes()
-elif section == "Aprobar Presupuestos":
-    aprobar_presupuestos()
-# Función para gestionar cotizaciones
-def gestionar_cotizaciones():
-    st.title("📄 Gestión de Cotizaciones")
-    if st.session_state["solicitudes"]:
-        for idx, solicitud in enumerate(st.session_state["solicitudes"]):
-            with st.expander(f"Solicitud {idx+1}: {solicitud['Nombre']}"):
-                st.write("**Descripción:**", solicitud["Descripción"])
-                st.write("**Presupuesto Estimado:**", solicitud["Presupuesto"])
-                st.write("**Fecha:**", solicitud["Fecha"])
-                st.write("**Medio:**", solicitud["Medio"])
-                
-                proveedor = st.text_input(f"Proveedor para Solicitud {idx+1}:", key=f"proveedor_{idx}")
-                costo = st.number_input(f"Costo Cotizado para Solicitud {idx+1}:", min_value=0.0, step=0.1, key=f"costo_{idx}")
-                detalles = st.text_area(f"Detalles de la Cotización para Solicitud {idx+1}:", key=f"detalles_{idx}")
-                
-                if st.button(f"Registrar Cotización {idx+1}", key=f"registrar_cot_{idx}"):
-                    if proveedor and costo > 0 and detalles:
-                        nueva_cotizacion = {
-                            "Nombre Cliente": solicitud["Nombre"],
-                            "Proveedor": proveedor,
-                            "Costo Cotizado": costo,
-                            "Detalles": detalles,
-                            "Fecha": solicitud["Fecha"]
-                        }
-                        st.session_state["cotizaciones"].append(nueva_cotizacion)
-                        st.success(f"✅ Cotización registrada para la solicitud {idx+1}.")
-                    else:
-                        st.error("⚠️ Por favor, completa todos los campos correctamente.")
-    else:
-        st.warning("⚠️ No hay solicitudes registradas para gestionar cotizaciones.")
+# Resumen de estatus
+estatus_resumen = cotizaciones_df["Estatus"].value_counts()
+st.bar_chart(estatus_resumen)
 
-# Función para visualizar cotizaciones
-def visualizar_cotizaciones():
-    st.title("📊 Visualización de Cotizaciones")
-    if st.session_state["cotizaciones"]:
-        for idx, cotizacion in enumerate(st.session_state["cotizaciones"]):
-            with st.expander(f"Cotización {idx+1}: {cotizacion['Proveedor']}"):
-                st.write("**Cliente:**", cotizacion["Nombre Cliente"])
-                st.write("**Proveedor:**", cotizacion["Proveedor"])
-                st.write("**Costo Cotizado:**", cotizacion["Costo Cotizado"])
-                st.write("**Detalles:**", cotizacion["Detalles"])
-                st.write("**Fecha:**", cotizacion["Fecha"])
-    else:
-        st.warning("⚠️ No hay cotizaciones registradas.")
+# Resumen de complejidades
+complejidad_resumen = cotizaciones_df["Complejidad"].value_counts()
+st.write("### Distribución por Complejidad")
+st.pie_chart(data=complejidad_resumen, labels=complejidad_resumen.index)
 
-# Función para generar reportes PDF
-def generar_reporte_pdf():
-    st.title("📑 Generación de Reportes PDF")
-    if st.session_state["presupuestos"]:
-        if st.button("Generar Reporte PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
+# Promedio de montos
+promedio_monto = cotizaciones_df["Monto"].mean()
+st.metric("Monto Promedio de Cotizaciones (MXN)", f"${promedio_monto:,.2f}")
 
-            pdf.cell(200, 10, txt="Reporte de Presupuestos Aprobados", ln=True, align="C")
-            pdf.ln(10)
+# Promedio de días restantes
+promedio_dias = cotizaciones_df["Días_Restantes"].mean()
+st.metric("Días Restantes Promedio", f"{promedio_dias:.1f} días")
+# Tercera parte del sistema: Funcionalidades avanzadas y manejo de roles
 
-            for idx, presupuesto in enumerate(st.session_state["presupuestos"]):
-                pdf.cell(200, 10, txt=f"Presupuesto {idx+1}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Nombre: {presupuesto['Nombre']}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Descripción: {presupuesto['Descripción']}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Presupuesto Aprobado: ${presupuesto['Presupuesto Aprobado']}", ln=True, align="L")
-                pdf.cell(200, 10, txt=f"Fecha: {presupuesto['Fecha']}", ln=True, align="L")
-                pdf.ln(5)
-            
-            # Guardar el PDF
-            pdf_output_path = "reporte_presupuestos.pdf"
-            pdf.output(pdf_output_path)
-            st.success(f"✅ Reporte generado exitosamente: {pdf_output_path}")
-            with open(pdf_output_path, "rb") as file:
-                st.download_button("Descargar Reporte PDF", file, file_name=pdf_output_path)
-    else:
-        st.warning("⚠️ No hay presupuestos aprobados para generar un reporte.")
+# Sección 4: Administración de Usuarios y Roles
+st.header("Administración de Usuarios y Roles")
 
-# Lógica para renderizar la sección seleccionada
-if section == "Gestión de Cotizaciones":
-    gestionar_cotizaciones()
-elif section == "Visualización de Cotizaciones":
-    visualizar_cotizaciones()
-elif section == "Generar Reportes PDF":
-    generar_reporte_pdf()
-# Función para gestionar tiempos de respuesta y semáforos
-def gestionar_tiempos():
-    st.title("⏳ Gestión de Tiempos de Respuesta")
-    if st.session_state["solicitudes"]:
-        for idx, solicitud in enumerate(st.session_state["solicitudes"]):
-            tiempo_respuesta = st.number_input(
-                f"Días estimados de respuesta para Solicitud {idx+1}:",
-                min_value=0, max_value=30, step=1, key=f"tiempo_respuesta_{idx}"
-            )
-            if tiempo_respuesta > 0:
-                color = "🟢" if tiempo_respuesta <= 2 else "🟡" if tiempo_respuesta <= 5 else "🔴"
-                st.write(f"Estado de tiempo para la Solicitud {idx+1}: {color}")
-    else:
-        st.warning("⚠️ No hay solicitudes registradas para gestionar tiempos de respuesta.")
+# Tabla de roles (demostrativa)
+roles_data = [
+    {"Usuario": "admin", "Rol": "Administrador", "Permisos": "Todos"},
+    {"Usuario": "analista01", "Rol": "Analista", "Permisos": "Lectura, Estadísticas"},
+    {"Usuario": "ventas02", "Rol": "Ventas", "Permisos": "Lectura, Agregar Cotizaciones"}
+]
+roles_df = pd.DataFrame(roles_data)
 
-# Función para gestionar asignaciones y equipos
-def gestionar_asignaciones():
-    st.title("📌 Gestión de Asignaciones")
-    if st.session_state["presupuestos"]:
-        for idx, presupuesto in enumerate(st.session_state["presupuestos"]):
-            with st.expander(f"Presupuesto {idx+1}: {presupuesto['Nombre']}"):
-                equipo_asignado = st.text_input(
-                    f"Equipo asignado para Presupuesto {idx+1}:",
-                    key=f"equipo_asignado_{idx}"
-                )
-                responsabilidades = st.text_area(
-                    f"Responsabilidades asignadas para el Equipo {equipo_asignado}:",
-                    key=f"responsabilidades_{idx}"
-                )
-                if st.button(f"Asignar Equipo a Presupuesto {idx+1}", key=f"asignar_equipo_{idx}"):
-                    if equipo_asignado and responsabilidades:
-                        st.success(f"✅ Equipo '{equipo_asignado}' asignado exitosamente.")
-                    else:
-                        st.error("⚠️ Por favor, completa los campos de asignación.")
-    else:
-        st.warning("⚠️ No hay presupuestos aprobados para asignar equipos.")
+# Mostrar tabla
+st.write("### Usuarios y sus roles:")
+st.dataframe(roles_df)
 
-# Función para gestionar alertas y recordatorios
-def gestionar_alertas():
-    st.title("⏰ Alertas y Recordatorios Automáticos")
-    alertas_pendientes = []
-    for solicitud in st.session_state["solicitudes"]:
-        fecha_solicitud = datetime.strptime(solicitud["Fecha"], "%Y-%m-%d")
-        dias_transcurridos = (datetime.today() - fecha_solicitud).days
-        if dias_transcurridos > 5:
-            alertas_pendientes.append(
-                f"⚠️ Solicitud de {solicitud['Nombre']} está pendiente por más de {dias_transcurridos} días."
-            )
-    if alertas_pendientes:
-        for alerta in alertas_pendientes:
-            st.warning(alerta)
-    else:
-        st.success("✅ No hay alertas pendientes.")
+# Agregar nuevo usuario
+with st.form("form_agregar_usuario"):
+    nuevo_usuario = st.text_input("Nombre de usuario")
+    nuevo_rol = st.selectbox("Seleccionar rol", ["Administrador", "Analista", "Ventas"])
+    boton_agregar_usuario = st.form_submit_button("Agregar Usuario")
+    if boton_agregar_usuario:
+        nuevo_registro = {"Usuario": nuevo_usuario, "Rol": nuevo_rol, "Permisos": "Por Definir"}
+        roles_df = pd.concat([roles_df, pd.DataFrame([nuevo_registro])], ignore_index=True)
+        st.success(f"¡Usuario {nuevo_usuario} agregado con rol {nuevo_rol}!")
 
-# Dashboards personalizados por roles
-def dashboard_personalizado(usuario):
-    if usuario == "Administrativo":
-        gestionar_asignaciones()
-        generar_reporte_pdf()
-    elif usuario == "Coordinador":
-        gestionar_tiempos()
-        gestionar_alertas()
-    elif usuario == "Campo":
-        gestionar_cotizaciones()
-    else:
-        st.warning("⚠️ Rol no reconocido. Selecciona un rol válido.")
+# Sección 5: Evaluación de Complejidad y Relevancia
+st.header("Evaluación de Complejidad y Relevancia")
 
-# Función principal para seleccionar el rol del usuario
-def seleccionar_rol_usuario():
-    st.sidebar.title("🎭 Selección de Rol de Usuario")
-    usuario = st.sidebar.selectbox(
-        "Selecciona tu rol:", ["Seleccione", "Administrativo", "Coordinador", "Campo"]
-    )
-    if usuario != "Seleccione":
-        dashboard_personalizado(usuario)
+# Selección de cotización para evaluar
+st.write("Selecciona una cotización para evaluar:")
+cotizacion_id = st.selectbox("ID de Cotización", cotizaciones_df["ID_Cotización"])
 
-# Inicio del programa principal
-def main():
-    seleccionar_rol_usuario()
+# Mostrar detalles de la cotización seleccionada
+cotizacion_seleccionada = cotizaciones_df[cotizaciones_df["ID_Cotización"] == cotizacion_id].iloc[0]
+st.write(f"**Cliente:** {cotizacion_seleccionada['Cliente']}")
+st.write(f"**Monto:** ${cotizacion_seleccionada['Monto']:,.2f}")
+st.write(f"**Complejidad:** {cotizacion_seleccionada['Complejidad']}")
+st.write(f"**Estatus:** {cotizacion_seleccionada['Estatus']}")
 
-if __name__ == "__main__":
-    main()
+# Evaluación simulada (demostrativa)
+relevancia_score = round(cotizacion_seleccionada["Monto"] / 1000, 2)
+st.write(f"### Evaluación de Relevancia: {relevancia_score} puntos")
+st.progress(min(relevancia_score / 10, 1.0))
+
+# Sección 6: Funcionalidades demostrativas
+st.header("Sección Demostrativa")
+
+# Botón para "Exportar Cotizaciones" (demostración)
+if st.button("Exportar Cotizaciones a CSV"):
+    cotizaciones_df.to_csv("cotizaciones_exportadas.csv", index=False)
+    st.success("¡Cotizaciones exportadas correctamente!")
+
+# Botón para futuras funcionalidades
+if st.button("Próximas Funcionalidades"):
+    st.info("¡Estamos trabajando en más funciones interactivas y avanzadas!")
+
+# Información adicional para el usuario
+st.sidebar.info("Para soporte técnico o dudas, contáctanos desde el menú superior.")
