@@ -5,3 +5,4 @@ seaborn
 scikit-learn
 numpy
 pickle5
+pillow
