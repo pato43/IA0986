@@ -3,4 +3,4 @@ datetime
 fpdf
 matplotlib
 seaborn
-sklearn.model_selection
+sklearn
