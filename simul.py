@@ -50,16 +50,20 @@ cotizaciones_df["Clasificación"] = cotizaciones_df.apply(clasificar_cotizacion,
 st.write("### Cotizaciones Clasificadas:")
 st.dataframe(cotizaciones_df)
 
+# Generar un DataFrame con las clasificaciones y sus conteos
+clasificacion_resumen = cotizaciones_df["Clasificación"].value_counts().reset_index()
+clasificacion_resumen.columns = ["Clasificación", "Cantidad"]
+
 # Gráfico interactivo de clasificación
 st.write("### Distribución por Clasificación:")
 fig_clasificacion = px.bar(
-    cotizaciones_df["Clasificación"].value_counts().reset_index(),
-    x="index",
-    y="Clasificación",
-    labels={"index": "Tipo de Cotización", "Clasificación": "Cantidad"},
+    clasificacion_resumen,
+    x="Clasificación",
+    y="Cantidad",
+    labels={"Clasificación": "Tipo de Cotización", "Cantidad": "Número de Cotizaciones"},
     title="Distribución de Cotizaciones por Clasificación",
-    color="index",
     text_auto=True,
+    color="Clasificación",
 )
 st.plotly_chart(fig_clasificacion, use_container_width=True)
 
@@ -68,8 +72,8 @@ st.header("Captura de Cotizaciones ✏️")
 
 # Formulario para captura de cotización
 st.write("### Captura Manual:")
-id_cotizacion = st.number_input("ID Cotización", min_value=1, step=1)
-cliente = st.text_input("Cliente", value="Cliente Demo")
+id_cotizacion = st.number_input("ID Cotización", min_value=1, step=1, value=len(cotizaciones_df) + 1)
+cliente = st.text_input("Cliente", value=f"Cliente {len(cotizaciones_df) + 1}")
 monto = st.number_input("Monto (MXN)", min_value=0, step=1000)
 complejidad = st.selectbox("Complejidad", ["Alta", "Media", "Baja"])
 estatus = st.selectbox("Estatus", ["Aceptada", "Pendiente", "Rechazada"])
@@ -82,7 +86,7 @@ if st.button("Capturar Cotización"):
         "Monto": monto,
         "Complejidad": complejidad,
         "Estatus": estatus,
-        "Clasificación": clasificar_cotizacion({"Monto": monto})
+        "Clasificación": clasificar_cotizacion({"Monto": monto}),
     }
     cotizaciones_df = pd.concat([cotizaciones_df, pd.DataFrame([nueva_cotizacion])], ignore_index=True)
     st.success("Cotización capturada correctamente.")
@@ -196,7 +200,7 @@ st.header("Evaluaciones y Métricas 📊")
 
 # Timeline del proyecto
 st.subheader("Timeline del Proyecto 📅")
-cotizaciones_df["Días para Finalizar"] = np.random.randint(5, 30, len(cotizaciones_df))
+cotizaciones_df["Días para Finalizar"] = cotizaciones_df["Días Restantes"] + np.random.randint(5, 30, len(cotizaciones_df))
 fig_timeline = px.timeline(
     cotizaciones_df,
     x_start="Días Restantes",
