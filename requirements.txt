@@ -9,3 +9,4 @@ scipy
 pillow
 scikit-learn
 pyyaml
+streamlit-timeline
