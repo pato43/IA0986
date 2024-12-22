@@ -9,4 +9,3 @@ scipy
 pillow
 scikit-learn
 pyyaml
-streamlit-timeline==0.0.5
