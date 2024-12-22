@@ -1,238 +1,349 @@
+# Parte 1: Importaciones, carga de datos y limpieza inicial
+
+# Importar librerías necesarias
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import seaborn as sns
+from io import BytesIO
 
-# Configuración inicial de la página
-st.set_page_config(page_title="Simulación de Eventos y Análisis", layout="wide")
-st.title("Simulación y Análisis de Eventos")
-st.markdown("Esta aplicación permite explorar datos simulados, realizar análisis temporales y visualizar resultados interactivos.")
-
-# Función para generar datos simulados
-def generar_datos_simulados():
-    np.random.seed(42)
-    fechas = pd.date_range(start="2023-01-01", end="2023-12-31", freq="D")
-    eventos = np.random.poisson(lam=3, size=len(fechas))
-    categorias = ["A", "B", "C"]
-    categorias_aleatorias = np.random.choice(categorias, size=len(fechas))
-    valores = np.random.uniform(10, 100, size=len(fechas))
-    return pd.DataFrame({
-        "Fecha": fechas,
-        "Eventos": eventos,
-        "Categoría": categorias_aleatorias,
-        "Valor": valores
-    })
-
-# Función para crear un gráfico de dispersión
-def crear_grafico_dispersión(data):
-    fig = px.scatter(
-        data,
-        x="Fecha",
-        y="Valor",
-        color="Categoría",
-        size="Eventos",
-        title="Gráfico de Dispersión: Valor vs Fecha",
-        labels={"Valor": "Monto", "Fecha": "Fecha"}
-    )
-    fig.update_layout(autosize=True, template="plotly_white")
-    return fig
-
-# Función para crear un gráfico de barras
-def crear_grafico_barras(data):
-    resumen = data.groupby("Categoría").agg({"Eventos": "sum", "Valor": "mean"}).reset_index()
-    fig = px.bar(
-        resumen,
-        x="Categoría",
-        y="Eventos",
-        color="Categoría",
-        title="Total de Eventos por Categoría",
-        text_auto=True
-    )
-    fig.update_layout(autosize=True, template="plotly_white")
-    return fig
-
-# Función para simular datos futuros
-def simular_datos_futuros(data, dias=30):
-    ultima_fecha = data["Fecha"].max()
-    nuevas_fechas = [ultima_fecha + timedelta(days=i) for i in range(1, dias + 1)]
-    categorias = ["A", "B", "C"]
-    nuevos_eventos = np.random.poisson(lam=3, size=len(nuevas_fechas))
-    nuevas_categorias = np.random.choice(categorias, size=len(nuevas_fechas))
-    nuevos_valores = np.random.uniform(10, 100, size=len(nuevas_fechas))
-    nuevos_datos = pd.DataFrame({
-        "Fecha": nuevas_fechas,
-        "Eventos": nuevos_eventos,
-        "Categoría": nuevas_categorias,
-        "Valor": nuevos_valores
-    })
-    return pd.concat([data, nuevos_datos], ignore_index=True)
-
-# Configuración de la barra lateral
-st.sidebar.header("Opciones de Filtro")
-categoria_seleccionada = st.sidebar.selectbox("Selecciona una Categoría", ["Todas", "A", "B", "C"])
-rango_fechas = st.sidebar.date_input(
-    "Rango de Fechas",
-    value=[datetime(2023, 1, 1), datetime(2023, 12, 31)]
+# Configuración inicial de Streamlit
+st.set_page_config(
+    page_title="Dashboard de Control de Presupuestos 2021",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
-simular_dias = st.sidebar.slider("Simular Días Futuros", min_value=0, max_value=60, value=30)
 
-# Generar y filtrar datos
-datos_simulados = generar_datos_simulados()
-if categoria_seleccionada != "Todas":
-    datos_simulados = datos_simulados[datos_simulados["Categoría"] == categoria_seleccionada]
-datos_simulados = datos_simulados[
-    (datos_simulados["Fecha"] >= pd.to_datetime(rango_fechas[0])) &
-    (datos_simulados["Fecha"] <= pd.to_datetime(rango_fechas[1]))
-]
+# Título principal
+st.title("Dashboard Interactivo de Control de Presupuestos 2021")
+st.markdown("### Análisis avanzado de presupuestos para la gestión de recursos.")
 
-# Mostrar datos simulados
-st.subheader("Datos Simulados Filtrados")
-st.dataframe(datos_simulados)
+# Importar archivo Excel
+uploaded_file = st.file_uploader("Sube tu archivo Excel con los datos de presupuestos", type=["xlsx"])
 
-# Visualización inicial: Gráfico de dispersión
-st.subheader("Visualización: Gráfico de Dispersión")
-grafico_dispersion = crear_grafico_dispersión(datos_simulados)
-st.plotly_chart(grafico_dispersion, use_container_width=True)
+# Verificación de carga del archivo
+if uploaded_file is not None:
+    # Cargar todas las hojas del archivo Excel
+    excel_data = pd.ExcelFile(uploaded_file)
+    sheet_names = excel_data.sheet_names
 
-# Visualización adicional: Gráfico de barras
-st.subheader("Visualización: Gráfico de Barras")
-grafico_barras = crear_grafico_barras(datos_simulados)
-st.plotly_chart(grafico_barras, use_container_width=True)
+    # Mostrar opciones de selección de hoja
+    st.sidebar.header("Opciones de configuración")
+    sheet_selected = st.sidebar.selectbox("Selecciona la hoja a analizar", sheet_names)
 
-# Simulación de datos futuros
-st.subheader("Simulación de Datos Futuros")
-if simular_dias > 0:
-    datos_futuros = simular_datos_futuros(datos_simulados, dias=simular_dias)
-    st.write(f"Datos simulados para los próximos {simular_dias} días:")
-    st.dataframe(datos_futuros.tail(simular_dias))
-    st.markdown("#### Visualización de Datos Simulados")
-    grafico_dispersión_futuro = crear_grafico_dispersión(datos_futuros)
-    st.plotly_chart(grafico_dispersión_futuro, use_container_width=True)
+    # Cargar datos de la hoja seleccionada
+    data_raw = pd.read_excel(uploaded_file, sheet_name=sheet_selected)
+
+    # Mostrar vista previa inicial
+    st.subheader(f"Vista previa de los datos: {sheet_selected}")
+    st.write("Datos sin procesar:")
+    st.dataframe(data_raw.head(10))
+
+    # Limpieza inicial
+    st.subheader("Limpieza de datos")
+
+    # Permitir al usuario seleccionar la fila de encabezados
+    header_row = st.slider(
+        "Selecciona la fila que contiene los encabezados (0-indexada):",
+        min_value=0, max_value=min(len(data_raw)-1, 10), value=2
+    )
+
+    # Reasignar encabezados y limpiar datos
+    data_raw.columns = data_raw.iloc[header_row].values
+    data_cleaned = data_raw.iloc[header_row+1:].reset_index(drop=True)
+
+    # Eliminar columnas completamente vacías
+    data_cleaned = data_cleaned.dropna(how='all', axis=1)
+
+    # Eliminar filas completamente vacías
+    data_cleaned = data_cleaned.dropna(how='all', axis=0)
+
+    # Mostrar datos procesados
+    st.write("Datos procesados:")
+    st.dataframe(data_cleaned.head(10))
+
+    # Guardar en el estado de sesión para futuras operaciones
+    st.session_state["data"] = data_cleaned
+
+    # Mostrar estadísticas básicas
+    st.subheader("Estadísticas descriptivas de las columnas numéricas")
+    st.write(data_cleaned.describe(include=[np.number]))
+
+    # Filtrar columnas específicas para análisis
+    st.sidebar.subheader("Filtrado de columnas")
+    numeric_columns = data_cleaned.select_dtypes(include=[np.number]).columns.tolist()
+    selected_columns = st.sidebar.multiselect(
+        "Selecciona columnas numéricas para visualizar", numeric_columns
+    )
+
+    if selected_columns:
+        st.write("Datos filtrados por las columnas seleccionadas:")
+        st.dataframe(data_cleaned[selected_columns].head())
+
+    # Función para manejar valores faltantes
+    def handle_missing_data(df, strategy="mean"):
+        """
+        Rellena valores faltantes en las columnas numéricas utilizando una estrategia especificada.
+        Estrategias soportadas: mean, median, mode.
+        """
+        if strategy == "mean":
+            return df.fillna(df.mean(numeric_only=True))
+        elif strategy == "median":
+            return df.fillna(df.median(numeric_only=True))
+        elif strategy == "mode":
+            return df.fillna(df.mode().iloc[0])
+        else:
+            raise ValueError("Estrategia no soportada")
+
+    # Manejar valores faltantes según selección del usuario
+    st.sidebar.subheader("Manejo de valores faltantes")
+    missing_strategy = st.sidebar.radio(
+        "Selecciona la estrategia para rellenar valores faltantes:",
+        ("mean", "median", "mode", "none")
+    )
+
+    if missing_strategy != "none":
+        data_cleaned = handle_missing_data(data_cleaned, strategy=missing_strategy)
+        st.write(f"Valores faltantes rellenados utilizando la estrategia: {missing_strategy}")
+        st.dataframe(data_cleaned.head())
+
+    # Guardar datos limpios finales
+    st.session_state["data_cleaned"] = data_cleaned
+
+    # Visualización inicial
+    st.subheader("Visualización de distribuciones de datos")
+
+    # Gráfico de distribución para columnas seleccionadas
+    if selected_columns:
+        for col in selected_columns:
+            st.write(f"Distribución de la columna: {col}")
+            fig, ax = plt.subplots()
+            sns.histplot(data_cleaned[col].dropna(), kde=True, ax=ax, color="blue")
+            st.pyplot(fig)
+
+    # Botón para avanzar
+    if st.button("Continuar a visualización avanzada"):
+        st.write("Listo para avanzar a la parte de análisis y gráficos interactivos.")
+
 else:
-    st.write("No se seleccionaron días para simular.")
+    st.warning("Por favor, sube un archivo Excel para comenzar.")
+# ----- PARTE 2: Visualizaciones avanzadas y estadísticas dinámicas ----- #
 
-# Indicador de progreso general
-st.sidebar.markdown("---")
-st.sidebar.info("Configuración Completa: Parte 1 del Proyecto")
+# Sección de visualizaciones avanzadas
+st.header("Visualizaciones avanzadas")
 
-# Mensaje de continuación
-st.markdown("Continúa en la Parte 2 para análisis avanzado, correlaciones y predicciones.")
-# Parte 2 - Análisis Avanzado y Predicciones
+# Selector para elegir el tipo de visualización
+visualization_type = st.selectbox(
+    "Selecciona el tipo de gráfico que deseas visualizar:",
+    ["Gráfico de líneas", "Gráfico de barras", "Gráfico de dispersión", "Mapa de calor"]
+)
 
-# Función para analizar correlaciones
-def calcular_correlaciones(data):
-    correlacion = data.corr(numeric_only=True)
-    fig = px.imshow(
-        correlacion,
-        text_auto=True,
-        title="Mapa de Calor: Correlaciones entre Variables",
-        color_continuous_scale="Viridis"
+# Selector dinámico para elegir las columnas a graficar
+st.sidebar.subheader("Opciones de gráfico")
+x_axis = st.sidebar.selectbox("Selecciona la columna para el eje X:", data.columns)
+y_axis = st.sidebar.selectbox("Selecciona la columna para el eje Y:", data.columns)
+
+# Generación de gráficos en base a la selección del usuario
+if visualization_type == "Gráfico de líneas":
+    st.subheader("Gráfico de líneas")
+    line_fig = px.line(data, x=x_axis, y=y_axis, title=f"{y_axis} en función de {x_axis}")
+    st.plotly_chart(line_fig)
+
+elif visualization_type == "Gráfico de barras":
+    st.subheader("Gráfico de barras")
+    bar_fig = px.bar(data, x=x_axis, y=y_axis, title=f"Distribución de {y_axis} por {x_axis}")
+    st.plotly_chart(bar_fig)
+
+elif visualization_type == "Gráfico de dispersión":
+    st.subheader("Gráfico de dispersión")
+    scatter_fig = px.scatter(data, x=x_axis, y=y_axis, title=f"Relación entre {x_axis} y {y_axis}")
+    st.plotly_chart(scatter_fig)
+
+elif visualization_type == "Mapa de calor":
+    st.subheader("Mapa de calor de correlaciones")
+    correlation_matrix = data.corr()
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm")
+    st.pyplot(plt)
+
+# Sección de análisis estadísticos
+st.header("Análisis estadísticos")
+
+# Resumen estadístico dinámico
+st.subheader("Resumen de estadísticas descriptivas")
+summary_stats = data.describe()
+st.write(summary_stats)
+
+# Identificar valores máximos y mínimos
+st.subheader("Valores máximos y mínimos")
+col_selected = st.selectbox("Selecciona una columna para analizar sus valores extremos:", data.columns)
+if pd.api.types.is_numeric_dtype(data[col_selected]):
+    max_value = data[col_selected].max()
+    min_value = data[col_selected].min()
+    st.metric(label=f"Máximo en {col_selected}", value=max_value)
+    st.metric(label=f"Mínimo en {col_selected}", value=min_value)
+else:
+    st.warning("Por favor, selecciona una columna numérica.")
+
+# Histogramas interactivos
+st.subheader("Histograma")
+hist_column = st.selectbox("Selecciona la columna para el histograma:", data.columns)
+bins = st.slider("Número de intervalos (bins):", min_value=5, max_value=50, value=10)
+if pd.api.types.is_numeric_dtype(data[hist_column]):
+    fig, ax = plt.subplots()
+    sns.histplot(data[hist_column], bins=bins, kde=True, color="skyblue", ax=ax)
+    ax.set_title(f"Histograma de {hist_column}")
+    st.pyplot(fig)
+else:
+    st.warning("Por favor, selecciona una columna numérica.")
+
+# Boxplot para análisis de outliers
+st.subheader("Análisis de outliers con Boxplot")
+boxplot_column = st.selectbox("Selecciona la columna para el Boxplot:", data.columns)
+if pd.api.types.is_numeric_dtype(data[boxplot_column]):
+    fig, ax = plt.subplots()
+    sns.boxplot(data[boxplot_column], color="lightgreen", ax=ax)
+    ax.set_title(f"Boxplot de {boxplot_column}")
+    st.pyplot(fig)
+else:
+    st.warning("Por favor, selecciona una columna numérica.")
+
+# Sección interactiva de filtros dinámicos
+st.header("Filtrado dinámico de datos")
+st.write("Usa las opciones de abajo para filtrar los datos según tus criterios.")
+
+# Filtros por columnas específicas
+filter_column = st.selectbox("Selecciona una columna para filtrar:", data.columns)
+if pd.api.types.is_numeric_dtype(data[filter_column]):
+    min_val, max_val = st.slider(
+        f"Selecciona el rango de valores para {filter_column}:",
+        min_value=float(data[filter_column].min()),
+        max_value=float(data[filter_column].max()),
+        value=(float(data[filter_column].min()), float(data[filter_column].max()))
     )
-    fig.update_layout(autosize=True, template="plotly_white")
-    return fig
+    filtered_data = data[(data[filter_column] >= min_val) & (data[filter_column] <= max_val)]
+    st.dataframe(filtered_data)
+else:
+    unique_values = data[filter_column].unique()
+    selected_values = st.multiselect(f"Selecciona los valores de {filter_column}:", unique_values, default=unique_values)
+    filtered_data = data[data[filter_column].isin(selected_values)]
+    st.dataframe(filtered_data)
 
-# Función para análisis de series de tiempo
-def analizar_series_tiempo(data):
-    resumen = data.groupby("Fecha")["Valor"].sum().reset_index()
-    fig = px.line(
-        resumen,
-        x="Fecha",
-        y="Valor",
-        title="Análisis de Series de Tiempo: Valor Diario Total",
-        labels={"Valor": "Monto Total", "Fecha": "Fecha"}
-    )
-    fig.update_layout(autosize=True, template="plotly_white")
-    return fig
+# Exportar datos filtrados
+st.download_button(
+    label="Descargar datos filtrados en CSV",
+    data=filtered_data.to_csv(index=False).encode("utf-8"),
+    file_name="datos_filtrados.csv",
+    mime="text/csv"
+)
+# PARTE 3: INTEGRACIÓN DE NOTIFICACIONES Y DETECCIÓN DE ANOMALÍAS
 
-# Función para predicciones simples (promedio móvil)
-def prediccion_promedio_movil(data, ventanas=7):
-    resumen = data.groupby("Fecha")["Valor"].sum().reset_index()
-    resumen["Promedio Móvil"] = resumen["Valor"].rolling(window=ventanas).mean()
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=resumen["Fecha"], y=resumen["Valor"], mode="lines", name="Valor Real"))
-    fig.add_trace(go.Scatter(x=resumen["Fecha"], y=resumen["Promedio Móvil"], mode="lines", name=f"Promedio Móvil ({ventanas} días)"))
-    fig.update_layout(
-        title=f"Predicción Simple: Promedio Móvil ({ventanas} días)",
-        xaxis_title="Fecha",
-        yaxis_title="Monto Total",
-        template="plotly_white",
-        autosize=True
-    )
-    return fig
+# Función para detectar desviaciones en los presupuestos
+def detectar_anomalias(data):
+    """
+    Detecta desviaciones significativas en los datos del presupuesto utilizando z-scores.
+    Retorna un DataFrame con las anomalías detectadas.
+    """
+    from scipy.stats import zscore
 
-# Visualización: Mapa de calor de correlaciones
-st.subheader("Análisis de Correlaciones")
-grafico_correlacion = calcular_correlaciones(datos_simulados)
-st.plotly_chart(grafico_correlacion, use_container_width=True)
+    df_anomalias = data.copy()
+    df_anomalias['z_score'] = zscore(df_anomalias['Monto'])
+    df_anomalias['Es_anomalia'] = df_anomalias['z_score'].abs() > 3
 
-# Visualización: Series de tiempo
-st.subheader("Análisis de Series de Tiempo")
-grafico_series_tiempo = analizar_series_tiempo(datos_simulados)
-st.plotly_chart(grafico_series_tiempo, use_container_width=True)
+    anomalias_detectadas = df_anomalias[df_anomalias['Es_anomalia']]
+    return anomalias_detectadas
 
-# Predicciones: Promedio móvil
-st.subheader("Predicción: Promedio Móvil")
-ventanas_prediccion = st.slider("Ventana para Promedio Móvil (días)", min_value=3, max_value=30, value=7)
-grafico_prediccion = prediccion_promedio_movil(datos_simulados, ventanas=ventanas_prediccion)
-st.plotly_chart(grafico_prediccion, use_container_width=True)
+# Mostrar anomalías en la interfaz
+st.header("Detección de Anomalías")
+if st.button("Detectar Anomalías"):
+    with st.spinner("Analizando datos..."):
+        anomalias = detectar_anomalias(df)
+        if not anomalias.empty:
+            st.error("Se han detectado las siguientes anomalías:")
+            st.dataframe(anomalias[['Fecha', 'Descripción', 'Monto', 'z_score']])
+        else:
+            st.success("No se detectaron anomalías en los datos.")
+    st.divider()
 
-# Análisis por categoría
-st.subheader("Análisis Detallado por Categoría")
-categoria_analisis = st.selectbox("Selecciona una Categoría para el Análisis Detallado", ["A", "B", "C"])
-datos_categoria = datos_simulados[datos_simulados["Categoría"] == categoria_analisis]
-st.write(f"Datos de la Categoría {categoria_analisis}")
-st.dataframe(datos_categoria)
+# Enviar notificaciones por correo al detectar anomalías
+def enviar_notificacion(anomalias):
+    """
+    Envía un correo electrónico con información sobre las anomalías detectadas.
+    """
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
 
-# Función para análisis de eventos por categoría
-def grafico_eventos_categoria(data):
-    resumen = data.groupby("Fecha")["Eventos"].sum().reset_index()
-    fig = px.area(
-        resumen,
-        x="Fecha",
-        y="Eventos",
-        title=f"Eventos por Día en Categoría {categoria_analisis}",
-        labels={"Eventos": "Número de Eventos", "Fecha": "Fecha"},
-        color_discrete_sequence=["#636EFA"]
-    )
-    fig.update_layout(autosize=True, template="plotly_white")
-    return fig
+    # Configuración del correo
+    destinatario = "rojasalexander10@gmail.com"
+    remitente = "tu_correo@gmail.com"
+    asunto = "Notificación de Anomalías Detectadas en el Dashboard"
 
-# Visualización de eventos por categoría
-grafico_eventos = grafico_eventos_categoria(datos_categoria)
-st.plotly_chart(grafico_eventos, use_container_width=True)
+    # Crear cuerpo del correo
+    cuerpo = f"""
+    Hola,
 
-# Exportar datos simulados
-st.subheader("Exportar Datos")
-exportar_datos = st.checkbox("¿Deseas exportar los datos simulados?")
-if exportar_datos:
-    csv = datos_simulados.to_csv(index=False)
+    Se han detectado las siguientes anomalías en los datos:
+    {anomalias.to_string(index=False)}
+
+    Por favor, revise el dashboard para más detalles.
+
+    Saludos,
+    Equipo de Control Presupuestal
+    """
+    mensaje = MIMEMultipart()
+    mensaje["From"] = remitente
+    mensaje["To"] = destinatario
+    mensaje["Subject"] = asunto
+    mensaje.attach(MIMEText(cuerpo, "plain"))
+
+    # Configurar servidor de correo
+    try:
+        servidor = smtplib.SMTP("smtp.gmail.com", 587)
+        servidor.starttls()
+        servidor.login(remitente, "tu_contraseña")  # Sustituir con tu contraseña
+        servidor.sendmail(remitente, destinatario, mensaje.as_string())
+        servidor.quit()
+        st.success("Correo enviado correctamente.")
+    except Exception as e:
+        st.error(f"Error al enviar el correo: {e}")
+
+# Botón para enviar notificación
+if st.button("Enviar Notificación de Anomalías"):
+    if 'anomalias' in locals() and not anomalias.empty:
+        enviar_notificacion(anomalias)
+    else:
+        st.warning("No hay anomalías detectadas para notificar.")
+st.divider()
+
+# Exportar datos filtrados
+st.header("Exportar Datos Filtrados")
+if st.button("Exportar"):
+    # Crear archivo CSV con los datos actuales
+    csv = df.to_csv(index=False).encode('utf-8')
     st.download_button(
-        label="Descargar CSV",
+        label="Descargar archivo CSV",
         data=csv,
-        file_name="datos_simulados.csv",
-        mime="text/csv"
+        file_name="datos_filtrados.csv",
+        mime="text/csv",
     )
-    st.success("¡Datos listos para descargar!")
+    st.success("Archivo CSV generado con éxito.")
 
-# Simulación adicional: Eventos extremos
-st.subheader("Simulación de Eventos Extremos")
-agregar_eventos_extremos = st.checkbox("¿Agregar eventos extremos a la simulación?")
-if agregar_eventos_extremos:
-    extremos = pd.DataFrame({
-        "Fecha": [datetime(2023, 6, 15), datetime(2023, 11, 20)],
-        "Eventos": [50, 80],
-        "Categoría": ["A", "B"],
-        "Valor": [1000, 2000]
-    })
-    datos_extremos = pd.concat([datos_simulados, extremos], ignore_index=True)
-    st.write("Datos con eventos extremos agregados:")
-    st.dataframe(datos_extremos)
-    grafico_extremos = crear_grafico_dispersión(datos_extremos)
-    st.plotly_chart(grafico_extremos, use_container_width=True)
+# Sección de ayuda e instrucciones
+st.sidebar.title("Ayuda e Instrucciones")
+st.sidebar.info(
+    """
+    **¿Cómo usar este dashboard?**
+    
+    - Carga los datos del presupuesto en formato Excel.
+    - Usa los filtros para explorar los datos.
+    - Detecta anomalías y revisa las desviaciones.
+    - Envía notificaciones cuando sea necesario.
+    - Exporta los datos para su uso externo.
+    
+    **Contacto:** rojasalexander10@gmail.com
+    """
+)
 
-# Mensaje final
-st.sidebar.markdown("---")
-st.sidebar.success("Parte 2 completada: Análisis y Predicciones")
-st.markdown("**¡Gracias por usar esta aplicación de simulación y análisis!**")
+st.success("¡El dashboard está listo para usarse!")
