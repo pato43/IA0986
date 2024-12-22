@@ -9,3 +9,4 @@ xlsxwriter
 smtplib
 email
 pyarrow
+smtplib
