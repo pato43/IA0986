@@ -3,9 +3,9 @@ pandas
 numpy
 matplotlib
 seaborn
-openpyxl
 plotly
-scipy
-pillow
-scikit-learn
-pyyaml
+openpyxl
+xlsxwriter
+smtplib
+email
+pyarrow
