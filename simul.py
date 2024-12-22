@@ -1,290 +1,285 @@
 import streamlit as st
+from streamlit_timeline import st_timeline
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import datetime
 
-# Configuración inicial
-st.set_page_config(
-    page_title="Sistema de Evaluación y Gestión de Cotizaciones",
-    page_icon="💼",
-    layout="wide",
-)
+# Configuración de la página
+st.set_page_config(page_title="Gestión de Cotizaciones", layout="wide")
 
-# Encabezado principal
-st.title("Sistema de Evaluación y Gestión de Cotizaciones 💼")
-st.write(
-    """
-    Este sistema permite gestionar cotizaciones, evaluar su complejidad y relevancia, 
-    y administrar usuarios y roles de manera interactiva.
-    """
-)
+# Títulos y subtítulos principales
+st.title("Dashboard de Gestión de Cotizaciones")
+st.markdown("""
+    Este dashboard está diseñado para **optimizar la gestión de cotizaciones**, automatizar procesos y brindar una visión clara del desempeño del equipo.
+""")
 
-# --------------------- Clasificación de Cotizaciones ---------------------
-st.header("Clasificación de Cotizaciones 📄")
+# Definición de estilos personalizados
+def custom_css():
+    st.markdown(
+        """
+        <style>
+        .stButton > button { 
+            background-color: #2ECC71;
+            color: white;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+        .stButton > button:hover {
+            background-color: #27AE60;
+        }
+        .critical { background-color: #E74C3C; color: white; padding: 8px; border-radius: 5px; text-align: center; }
+        .warning { background-color: #F1C40F; color: black; padding: 8px; border-radius: 5px; text-align: center; }
+        .success { background-color: #2ECC71; color: white; padding: 8px; border-radius: 5px; text-align: center; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# Tipos de cotización definidos
-tipos_cotizacion = {
-    "Doble A": {"min": 200000, "max": 500000},
-    "Triple A": {"min": 1000000, "max": 20000000},
-}
+custom_css()
 
-# Datos simulados de cotizaciones
-cotizaciones_df = pd.DataFrame({
-    "ID_Cotización": range(1, 11),
-    "Cliente": [f"Cliente {i}" for i in range(1, 11)],
-    "Monto": np.random.randint(100000, 5000000, 10),
-    "Complejidad": np.random.choice(["Alta", "Media", "Baja"], 10),
-    "Estatus": np.random.choice(["Aceptada", "Pendiente", "Rechazada"], 10),
-})
+# Sidebar para control de accesos y filtros
+st.sidebar.title("Panel de Configuración")
+role = st.sidebar.selectbox("Seleccione su rol:", ["Coordinador", "Vendedor", "Supervisor"])
 
-# Función para clasificar cotizaciones
-def clasificar_cotizacion(row):
-    for tipo, rango in tipos_cotizacion.items():
-        if rango["min"] <= row["Monto"] <= rango["max"]:
-            return tipo
-    return "Otra"
-
-cotizaciones_df["Clasificación"] = cotizaciones_df.apply(clasificar_cotizacion, axis=1)
-
-# Mostrar tabla interactiva
-st.write("### Cotizaciones Clasificadas:")
-st.dataframe(cotizaciones_df)
-
-# Generar un DataFrame con las clasificaciones y sus conteos
-clasificacion_resumen = cotizaciones_df["Clasificación"].value_counts().reset_index()
-clasificacion_resumen.columns = ["Clasificación", "Cantidad"]
-
-# Gráfico interactivo de clasificación
-st.write("### Distribución por Clasificación:")
-fig_clasificacion = px.bar(
-    clasificacion_resumen,
-    x="Clasificación",
-    y="Cantidad",
-    labels={"Clasificación": "Tipo de Cotización", "Cantidad": "Número de Cotizaciones"},
-    title="Distribución de Cotizaciones por Clasificación",
-    text_auto=True,
-    color="Clasificación",
-)
-st.plotly_chart(fig_clasificacion, use_container_width=True)
-
-# --------------------- Captura de Cotizaciones ---------------------
-st.header("Captura de Cotizaciones ✏️")
-
-# Formulario para captura de cotización
-st.write("### Captura Manual:")
-id_cotizacion = st.number_input("ID Cotización", min_value=1, step=1, value=len(cotizaciones_df) + 1)
-cliente = st.text_input("Cliente", value=f"Cliente {len(cotizaciones_df) + 1}")
-monto = st.number_input("Monto (MXN)", min_value=0, step=1000)
-complejidad = st.selectbox("Complejidad", ["Alta", "Media", "Baja"])
-estatus = st.selectbox("Estatus", ["Aceptada", "Pendiente", "Rechazada"])
-
-# Botón para capturar datos
-if st.button("Capturar Cotización"):
-    nueva_cotizacion = {
-        "ID_Cotización": id_cotizacion,
-        "Cliente": cliente,
-        "Monto": monto,
-        "Complejidad": complejidad,
-        "Estatus": estatus,
-        "Clasificación": clasificar_cotizacion({"Monto": monto}),
-    }
-    cotizaciones_df = pd.concat([cotizaciones_df, pd.DataFrame([nueva_cotizacion])], ignore_index=True)
-    st.success("Cotización capturada correctamente.")
-    st.dataframe(cotizaciones_df)
-
-# Opción para capturar datos simulados de campo
-st.write("### Captura Simulada desde Campo:")
-captura_simulada = st.radio(
-    "Seleccione un tipo de captura:",
-    ["Vía telefónica", "En campo", "Automatizada"]
-)
-st.info(f"Captura seleccionada: {captura_simulada}")
-
-# Visualización de cambios actualizados
-st.write("### Cotizaciones Actualizadas:")
-st.dataframe(cotizaciones_df)
-# --------------------- Asignación y Flujo de Trabajo ---------------------
-st.header("Asignación y Flujo de Trabajo 📋")
-
-# Simulación de usuarios y roles
-usuarios_roles = pd.DataFrame({
-    "Usuario": ["Antonia", "Eduardo", "Luis Carlos", "Gerente A", "Vendedor 1", "Vendedor 2"],
-    "Rol": ["Supervisora", "Gerente Estratégico", "Gerente Estratégico", "Coordinador", "Vendedor", "Vendedor"],
-})
-
-# Mostrar tabla de roles
-st.write("### Roles y Responsabilidades:")
-st.dataframe(usuarios_roles)
-
-# Flujo de trabajo de las cotizaciones
-st.write("### Flujo de Trabajo de las Cotizaciones:")
-flujo_trabajo = [
-    {"Etapa": "Captura inicial", "Responsable": "Vendedor"},
-    {"Etapa": "Clasificación", "Responsable": "Antonia (Supervisora)"},
-    {"Etapa": "Revisión", "Responsable": "Coordinador o Gerente"},
-    {"Etapa": "Aprobación Estratégica", "Responsable": "Eduardo o Luis Carlos"},
-    {"Etapa": "Presupuesto Final", "Responsable": "Gerente Estratégico"},
-]
-df_flujo = pd.DataFrame(flujo_trabajo)
-st.dataframe(df_flujo)
-
-# Asignación de cotizaciones a usuarios
-st.write("### Asignación de Cotizaciones:")
-usuario_seleccionado = st.selectbox("Selecciona un usuario para asignar cotizaciones:", usuarios_roles["Usuario"])
-cotizaciones_disponibles = cotizaciones_df[cotizaciones_df["Estatus"] == "Pendiente"]
-
-# Tabla de cotizaciones pendientes
-st.write("Cotizaciones pendientes:")
-st.dataframe(cotizaciones_disponibles)
-
-# Botón para asignar cotización
-cotizacion_asignada = st.selectbox("Selecciona una cotización para asignar:", cotizaciones_disponibles["ID_Cotización"])
-if st.button("Asignar Cotización"):
-    st.success(f"Cotización {cotizacion_asignada} asignada a {usuario_seleccionado}.")
-
-# --------------------- Monitoreo y Alertas ---------------------
-st.header("Monitoreo y Alertas 🚦")
-
-# Simulación de estados de las cotizaciones
-cotizaciones_df["Días Restantes"] = np.random.randint(-5, 10, len(cotizaciones_df))
-cotizaciones_df["Estado Semáforo"] = pd.cut(
-    cotizaciones_df["Días Restantes"],
-    bins=[-float("inf"), 0, 3, float("inf")],
-    labels=["Rojo", "Amarillo", "Verde"]
-)
-
-# Sistema de semáforos
-st.write("### Sistema de Semáforos:")
-st.markdown(
-    """
-    - **Rojo:** Tareas vencidas.
-    - **Amarillo:** Tareas próximas a vencer.
-    - **Verde:** Tareas completadas o con tiempo suficiente.
-    """
-)
-
-# Mostrar cotizaciones con semáforo
-st.write("### Estado de las Cotizaciones:")
-fig_semaforo = px.bar(
-    cotizaciones_df,
-    x="ID_Cotización",
-    y="Días Restantes",
-    color="Estado Semáforo",
-    title="Estado de las Cotizaciones (Sistema de Semáforos)",
-    color_discrete_map={"Rojo": "red", "Amarillo": "yellow", "Verde": "green"},
-    text_auto=True,
-)
-st.plotly_chart(fig_semaforo, use_container_width=True)
-
-# Filtrar por estado de semáforo
-estado_filtrado = st.selectbox("Filtrar por estado de semáforo:", ["Todos", "Rojo", "Amarillo", "Verde"])
-if estado_filtrado != "Todos":
-    cotizaciones_filtradas = cotizaciones_df[cotizaciones_df["Estado Semáforo"] == estado_filtrado]
+if role == "Vendedor":
+    user_name = st.sidebar.text_input("Nombre del vendedor:", "Sebastián")
 else:
-    cotizaciones_filtradas = cotizaciones_df
+    user_name = "Administrador"
 
-st.write("### Cotizaciones Filtradas por Estado:")
-st.dataframe(cotizaciones_filtradas)
+st.sidebar.markdown(f"### Bienvenido, {user_name}")
 
-# Alertas personalizadas
-st.write("### Alertas Personalizadas:")
-for _, row in cotizaciones_filtradas.iterrows():
-    if row["Estado Semáforo"] == "Rojo":
-        st.error(f"⚠️ Cotización {row['ID_Cotización']} está vencida. Urgente revisión.")
-    elif row["Estado Semáforo"] == "Amarillo":
-        st.warning(f"⚠️ Cotización {row['ID_Cotización']} está próxima a vencer.")
-    else:
-        st.success(f"✔️ Cotización {row['ID_Cotización']} está en buen estado.")
-# --------------------- Evaluaciones y Métricas ---------------------
-st.header("Evaluaciones y Métricas 📊")
-
-# Timeline del proyecto
-st.subheader("Timeline del Proyecto 📅")
-cotizaciones_df["Días para Finalizar"] = cotizaciones_df["Días Restantes"] + np.random.randint(5, 30, len(cotizaciones_df))
-fig_timeline = px.timeline(
-    cotizaciones_df,
-    x_start="Días Restantes",
-    x_end="Días para Finalizar",
-    y="Cliente",
-    title="Timeline de Proyectos por Cliente",
-    color="Estado Semáforo",
-    labels={"Días Restantes": "Inicio", "Días para Finalizar": "Fin"},
-    color_discrete_map={"Rojo": "red", "Amarillo": "yellow", "Verde": "green"},
-)
-fig_timeline.update_yaxes(categoryorder="total ascending")
-st.plotly_chart(fig_timeline, use_container_width=True)
-
-# Indicadores visuales para evaluar completitud de datos
-st.subheader("Checkpoints de Evaluación ✅")
-cotizaciones_df["Check Completo"] = cotizaciones_df.apply(
-    lambda x: "✅ Completo" if x["Monto"] > 100000 and x["Estado Semáforo"] == "Verde" else "⚠️ Pendiente", axis=1
-)
-st.write("### Estado de Checkpoints:")
-st.dataframe(cotizaciones_df[["ID_Cotización", "Cliente", "Check Completo"]])
-
-# Generación automática de bonos
-st.subheader("Bonos Automáticos 💰")
-cotizaciones_df["Bono"] = cotizaciones_df.apply(
-    lambda x: 5000 if x["Estado Semáforo"] == "Verde" and x["Estatus"] == "Aceptada" else 0, axis=1
-)
-st.write("### Bonos Generados:")
-st.dataframe(cotizaciones_df[["ID_Cotización", "Cliente", "Bono"]])
-
-# --------------------- Seguimiento Postventa ---------------------
-st.header("Seguimiento Postventa 📦")
-
-# Indicadores de avance
-st.subheader("Indicadores de Avance 📈")
-cotizaciones_df["Porcentaje Avance"] = np.random.randint(50, 100, len(cotizaciones_df))
-fig_avance = px.bar(
-    cotizaciones_df,
-    x="Cliente",
-    y="Porcentaje Avance",
-    title="Porcentaje de Avance por Proyecto",
-    text_auto=True,
-    color="Porcentaje Avance",
-    color_continuous_scale=px.colors.sequential.Viridis,
-)
-st.plotly_chart(fig_avance, use_container_width=True)
-
-# Retroalimentación y mejoras
-st.subheader("Retroalimentación y Mejoras 📢")
-st.write("### Comentarios de Clientes:")
-retroalimentacion = st.text_area("Ingresa comentarios sobre mejoras y experiencias:", height=150)
-if st.button("Guardar Retroalimentación"):
-    st.success("Retroalimentación guardada exitosamente.")
-    st.info(f"Comentarios ingresados: {retroalimentacion}")
-
-# --------------------- Generación de Reportes ---------------------
-st.header("Generación de Reportes 📑")
-
-# Personalización del reporte
-st.subheader("Personaliza tu Reporte 📋")
-columnas_seleccionadas = st.multiselect(
-    "Selecciona las columnas para incluir en el reporte:",
-    cotizaciones_df.columns,
-    default=["ID_Cotización", "Cliente", "Monto", "Estatus"]
+# Filtros por estado de las cotizaciones
+st.sidebar.header("Filtros")
+status_filter = st.sidebar.multiselect(
+    "Seleccionar estado:", ["Pendiente", "En proceso", "Enviado", "Aprobado", "Rechazado"], ["Pendiente"]
 )
 
-# Generar CSV
+# Simulación de datos
 @st.cache_data
-def generar_csv_reporte(df, columnas):
-    return df[columnas].to_csv(index=False).encode('utf-8')
+def load_data():
+    data = {
+        "ID": [1, 2, 3, 4, 5],
+        "Cliente": ["Cliente A", "Cliente B", "Cliente C", "Cliente D", "Cliente E"],
+        "Estado": ["Pendiente", "En proceso", "Enviado", "Aprobado", "Rechazado"],
+        "Fecha Creación": [
+            datetime.now() - timedelta(days=i * 5) for i in range(5)
+        ],
+        "Fecha Límite": [
+            datetime.now() + timedelta(days=(5 - i) * 2) for i in range(5)
+        ],
+        "Vendedor": ["Sebastián", "Ramiro", "Antonia", "Sebastián", "Antonia"],
+        "Monto": [5000, 10000, 7500, 8000, 12000],
+    }
+    return pd.DataFrame(data)
 
-csv_reporte = generar_csv_reporte(cotizaciones_df, columnas_seleccionadas)
-st.download_button(
-    label="Descargar Reporte en CSV 📥",
-    data=csv_reporte,
-    file_name="reporte_cotizaciones.csv",
-    mime="text/csv",
+data = load_data()
+
+# Filtrar datos por estado seleccionado
+data_filtered = data[data["Estado"].isin(status_filter)]
+
+# Visualización de métricas clave
+st.header("Indicadores Clave")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    total_cotizaciones = len(data)
+    st.metric("Total Cotizaciones", total_cotizaciones)
+
+with col2:
+    cotizaciones_enviadas = len(data[data["Estado"] == "Enviado"])
+    st.metric("Cotizaciones Enviadas", cotizaciones_enviadas)
+
+with col3:
+    tasa_exito = (
+        len(data[data["Estado"] == "Aprobado"]) / total_cotizaciones * 100
+        if total_cotizaciones > 0
+        else 0
+    )
+    st.metric("Tasa de Éxito (%)", f"{tasa_exito:.2f}")
+
+# Sección de Cotizaciones
+st.header("Gestión de Cotizaciones")
+
+# Tabla interactiva
+st.subheader("Cotizaciones Actuales")
+
+def highlight_status(row):
+    if row["Estado"] == "Pendiente":
+        return ["background-color: #FAD7A0"] * len(row)
+    elif row["Estado"] == "En proceso":
+        return ["background-color: #F9E79F"] * len(row)
+    elif row["Estado"] == "Aprobado":
+        return ["background-color: #A9DFBF"] * len(row)
+    elif row["Estado"] == "Rechazado":
+        return ["background-color: #E6B0AA"] * len(row)
+    return [""] * len(row)
+
+data_display = data_filtered.style.apply(highlight_status, axis=1)
+st.write(data_display, unsafe_allow_html=True)
+
+# Botones de Acción
+st.subheader("Acciones Rápidas")
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("Agregar Nueva Cotización"):
+        st.success("Función para agregar cotizaciones próximamente.")
+
+with col2:
+    if st.button("Actualizar Estados"):
+        st.info("Función para actualizar estados próximamente.")
+
+# Gráficos de Desempeño
+st.header("Gráficos de Desempeño")
+
+data_grouped = data.groupby("Vendedor").agg(
+    Total_Cotizaciones=("ID", "count"),
+    Monto_Total=("Monto", "sum"),
+).reset_index()
+
+fig = px.bar(
+    data_grouped,
+    x="Vendedor",
+    y="Monto_Total",
+    color="Vendedor",
+    title="Monto Total por Vendedor",
+    labels={"Monto_Total": "Monto Total ($)"},
+    template="plotly_white",
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# Fin de la Parte 1
+# Continuación del código
+# -------------------------------------------------------------------------------
+
+# Timeline interactivo para seguimiento de cotizaciones
+st.markdown("### Timeline de Cotizaciones")
+
+# Generar datos ficticios para el timeline
+cotizaciones_timeline = [
+    {
+        "id": 1,
+        "content": "Cotización 1 Enviada",
+        "start": "2024-12-01",
+        "end": "2024-12-05",
+        "className": "green",
+    },
+    {
+        "id": 2,
+        "content": "Cotización 2 Pendiente",
+        "start": "2024-12-03",
+        "end": "2024-12-07",
+        "className": "yellow",
+    },
+    {
+        "id": 3,
+        "content": "Cotización 3 Rechazada",
+        "start": "2024-12-08",
+        "end": "2024-12-10",
+        "className": "red",
+    },
+]
+
+# Visualizar el timeline
+st_timeline(
+    items=cotizaciones_timeline,
+    groups=[],
+    options={
+        "editable": False,
+        "stack": True,
+        "start": "2024-12-01",
+        "end": "2024-12-15",
+    },
 )
 
-# Generar PDF
-st.write("### Generación de Reporte en PDF:")
-if st.button("Generar Reporte PDF"):
-    st.info("⚠️ La funcionalidad de PDF está en desarrollo. Por ahora, descarga el CSV.")
+# Simulación y análisis avanzado
+st.markdown("### Simulaciones de Cotizaciones")
 
-# Resumen general
-st.subheader("Resumen General 🌟")
-st.write("### Estadísticas de Cotizaciones:")
-st.write(cotizaciones_df[["Monto", "Porcentaje Avance", "Bono"]].describe())
+# Inputs interactivos para simulación
+col1, col2 = st.columns(2)
+with col1:
+    sim_cotizaciones = st.slider(
+        "Cantidad de cotizaciones a simular", min_value=10, max_value=100, value=50
+    )
+with col2:
+    probabilidad_exito = st.slider(
+        "Probabilidad de éxito (%)", min_value=0, max_value=100, value=50
+    )
+
+# Generar simulación de datos
+np.random.seed(42)
+resultados_simulacion = np.random.choice(
+    ["Éxito", "Fracaso"], size=sim_cotizaciones, p=[probabilidad_exito / 100, 1 - probabilidad_exito / 100]
+)
+
+# Contar resultados
+resultados_contados = pd.DataFrame(
+    {"Resultado": ["Éxito", "Fracaso"], "Cantidad": [
+        np.sum(resultados_simulacion == "Éxito"),
+        np.sum(resultados_simulacion == "Fracaso"),
+    ]}
+)
+
+# Gráfica de simulación
+st.markdown("#### Resultados de la Simulación")
+fig_simulacion = px.bar(
+    resultados_contados,
+    x="Resultado",
+    y="Cantidad",
+    color="Resultado",
+    title="Resultados de la Simulación",
+    color_discrete_map={"Éxito": "green", "Fracaso": "red"},
+)
+st.plotly_chart(fig_simulacion)
+
+# Sección de optimización
+st.markdown("### Optimización y Análisis de Desempeño")
+
+# Inputs dinámicos
+col1, col2, col3 = st.columns(3)
+with col1:
+    margen_utilidad = st.number_input(
+        "Margen de utilidad esperado (%)", min_value=0.0, max_value=100.0, value=20.0
+    )
+with col2:
+    costos_fijos = st.number_input("Costos fijos ($)", min_value=0.0, value=5000.0)
+with col3:
+    costos_variables = st.number_input("Costos variables por unidad ($)", min_value=0.0, value=100.0)
+
+# Calcular optimización
+ventas_optimales = (costos_fijos / (margen_utilidad / 100)) + costos_variables
+st.markdown(f"#### Ventas óptimas para alcanzar el margen deseado: ${ventas_optimales:,.2f}")
+
+# Visualización del rendimiento
+datos_rendimiento = pd.DataFrame({
+    "Concepto": ["Costos Fijos", "Costos Variables", "Ventas Optimales"],
+    "Monto": [costos_fijos, costos_variables, ventas_optimales],
+})
+fig_rendimiento = px.pie(
+    datos_rendimiento,
+    names="Concepto",
+    values="Monto",
+    title="Distribución de Costos y Ventas",
+    color_discrete_sequence=["blue", "orange", "green"],
+)
+st.plotly_chart(fig_rendimiento)
+
+# Feedback y métricas adicionales
+st.markdown("### Retroalimentación en Tiempo Real")
+
+# Sección para capturar comentarios
+comentario = st.text_area(
+    "Escribe tus comentarios sobre el desempeño del equipo o el análisis presentado:"
+)
+if st.button("Enviar Comentario"):
+    st.success("¡Comentario enviado exitosamente!")
+
+# Cierre del dashboard
+st.markdown(
+    "---\n**Nota**: Este dashboard es un prototipo y está sujeto a mejoras según las necesidades del cliente."
+)
+
+# Fin del código
+# -------------------------------------------------------------------------------
