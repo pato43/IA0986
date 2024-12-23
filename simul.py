@@ -49,7 +49,7 @@ st.title("Dashboard de Cotizaciones")
 st.markdown("Este dashboard permite gestionar cotizaciones de manera eficiente, simulando datos donde sea necesario.")
 
 st.subheader("Estado General de Clientes")
-st.dataframe(cotizaciones["Cliente", "Monto", "Estatus", "Semaforo", "Metodo_Captura"], use_container_width=True)
+st.dataframe(cotizaciones[["Cliente", "Monto", "Estatus", "Semaforo", "Metodo_Captura"]], use_container_width=True)
 
 # Gráfico: Distribución por método de captura
 st.subheader("Distribución por Método de Captura")
