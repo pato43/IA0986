@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -9,28 +12,31 @@ st.set_page_config(
     layout="wide"
 )
 
-# Título del dashboard
+# Título del dashboard con diseño mejorado
 st.markdown(
     """
     <style>
-    .main-title {
-        font-size: 50px;
+    .title {
         text-align: center;
+        font-size: 48px;
         color: #2c3e50;
+        margin-bottom: 10px;
     }
-    .sub-title {
-        font-size: 20px;
+    .subtitle {
         text-align: center;
+        font-size: 18px;
         color: #7f8c8d;
+        margin-top: -10px;
+        margin-bottom: 40px;
     }
     </style>
-    <h1 class="main-title">Dashboard de Cotizaciones</h1>
-    <p class="sub-title">Simplifica y optimiza la gestión de tus cotizaciones</p>
+    <h1 class="title">Dashboard de Cotizaciones</h1>
+    <p class="subtitle">Optimiza la gestión de tus cotizaciones con análisis interactivo</p>
     """,
     unsafe_allow_html=True
 )
 
-# Menú principal con estilo
+# Menú de navegación
 menu = st.sidebar.radio(
     "Navegación",
     ["Vista Previa", "Editar Datos", "Estados y Análisis"],
@@ -44,6 +50,8 @@ FILE_PATH = "cleaned_coti.csv"
 def cargar_datos(file_path):
     try:
         datos = pd.read_csv(file_path)
+        if "Fecha" not in datos.columns:
+            datos["Fecha"] = pd.to_datetime("2023-01-01")  # Agregar columna ficticia si falta
         return datos
     except Exception as e:
         st.error(f"Error al cargar los datos: {e}")
@@ -111,14 +119,58 @@ if menu == "Estados y Análisis":
             title="Distribución de Estados de Cotizaciones"
         )
         st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader("Pronóstico de Ventas Mensuales")
+
+        cotizaciones["Fecha"] = pd.to_datetime(cotizaciones["Fecha"], errors="coerce")
+        ventas_mensuales = cotizaciones.groupby(
+            pd.to_datetime(cotizaciones["Fecha"], errors="coerce").dt.to_period("M")
+        ).agg(Total_Monto=("Monto", "sum")).reset_index()
+        ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
+
+        ventas_mensuales["Mes"] = range(len(ventas_mensuales))
+        X = ventas_mensuales[["Mes"]]
+        y = ventas_mensuales["Total_Monto"]
+
+        modelo = LinearRegression()
+        modelo.fit(X, y)
+
+        meses_futuros = 12
+        nuevos_meses = pd.DataFrame({"Mes": range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)})
+        predicciones = modelo.predict(nuevos_meses)
+
+        futuras_fechas = pd.date_range(
+            start=ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1),
+            periods=meses_futuros,
+            freq="M"
+        )
+
+        ventas_pronostico = pd.DataFrame({
+            "Fecha": futuras_fechas,
+            "Total_Monto": predicciones,
+            "Tipo": "Pronóstico"
+        })
+
+        ventas_historico = ventas_mensuales.copy()
+        ventas_historico["Tipo"] = "Histórico"
+
+        ventas_completo = pd.concat([ventas_historico, ventas_pronostico])
+
+        fig_pronostico = px.line(
+            ventas_completo,
+            x="Fecha",
+            y="Total_Monto",
+            color="Tipo",
+            title="Pronóstico de Ventas Mensuales",
+            labels={"Total_Monto": "Monto Total", "Fecha": "Fecha"},
+            color_discrete_map={"Histórico": "blue", "Pronóstico": "orange"}
+        )
+        fig_pronostico.update_traces(mode="lines+markers")
+        st.plotly_chart(fig_pronostico, use_container_width=True)
     else:
         st.warning("No se encontraron datos para analizar.")
 # Parte 2: Análisis Avanzado y Pronósticos Interactivos
 
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-# Análisis de Cotizaciones 2020-2021
 st.subheader("Análisis de Cotizaciones 2020-2021")
 
 cotizaciones_fechas = cotizaciones.copy()
@@ -218,7 +270,7 @@ with col3:
     st.metric("Crecimiento Estimado (%)", f"{crecimiento_estimado:.2f}%")
 # Parte 3: Filtros Dinámicos, Exportación y Métricas Finales
 
-# Filtros Dinámicos
+# Sección: Filtros Dinámicos
 st.subheader("Filtros Dinámicos de Cotizaciones")
 st.write("Refina las cotizaciones según diferentes criterios para análisis específico.")
 
