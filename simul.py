@@ -18,32 +18,32 @@ def cargar_datos(file_path):
     df = pd.read_csv(file_path)
     df_copia = df.copy()
 
-    # Agregar columnas con nombres según la estructura solicitada
+    # Renombrar columnas para ajustarse a los nombres requeridos
     df_copia.rename(columns={
         "Monto": "MONTO",
         "Cliente": "CLIENTE",
         "Estatus": "ESTATUS",
         "Fecha_Envio": "FECHA ENVIO",
         "Duracion_Dias": "DIAS",
-        "Metodo_Captura": "LLAMADA AL CLIENTE"
+        "Metodo_Captura": "LLAMADA AL CLIENTE",
+        "Concepto": "CONCEPTO"
     }, inplace=True)
 
-    # Simular columnas adicionales
+    # Simular columnas faltantes
     df_copia["AREA"] = df_copia.get("AREA", "General")
-    df_copia["CONCEPTO"] = df_copia.get("CONCEPTO", "Sin definir")
     df_copia["CLASIFICACION"] = df_copia.get("CLASIFICACION", "No clasificado")
     df_copia["VENDEDOR"] = df_copia.get("VENDEDOR", "Desconocido")
-    df_copia["Cotizado X CLIENTE"] = df_copia.get("Cotizado X CLIENTE", "0")
+    df_copia["Cotizado X CLIENTE"] = df_copia.get("Cotizado X CLIENTE", 0)
     df_copia["Pronostico con metodo de suavizacion exponencial"] = df_copia.get(
         "Pronostico con metodo de suavizacion exponencial", "Pendiente"
     )
 
-    # Agregar semáforo dinámico
+    # Agregar semáforo dinámico basado en el estatus
     df_copia["Semaforo"] = df_copia["ESTATUS"].apply(
         lambda x: "🟢 Aprobada" if x == "APROBADA" else ("🟡 Pendiente" if x == "PENDIENTE" else "🔴 Rechazada")
     )
 
-    # Formatear columnas esenciales
+    # Limpieza de datos
     df_copia["MONTO"] = pd.to_numeric(df_copia["MONTO"].replace({"\$": "", ",": ""}, regex=True), errors="coerce").fillna(0)
     df_copia["DIAS"] = pd.to_numeric(df_copia["DIAS"], errors="coerce").fillna(0)
 
@@ -55,11 +55,11 @@ cotizaciones = cargar_datos(FILE_PATH)
 # Sección de introducción
 st.title("Dashboard de Cotizaciones")
 st.markdown("""
-Este dashboard permite gestionar cotizaciones de manera eficiente, mostrar estados a través de semáforos y 
+Este dashboard permite gestionar cotizaciones de manera eficiente, automatizar actualizaciones con el semáforo y 
 realizar análisis detallados sobre los datos procesados.
 """)
 
-# Tabla principal
+# Tabla principal con semáforo
 st.subheader("Estado General de Clientes")
 columnas_mostrar = [
     "AREA", "CLIENTE", "CONCEPTO", "CLASIFICACION", "VENDEDOR", "FECHA ENVIO", "DIAS", "MONTO", "ESTATUS", "Semaforo"
@@ -89,29 +89,31 @@ col3.metric("Promedio de Días", f"{cotizaciones['DIAS'].mean():.2f}")
 
 # Gráfico de métodos de captura
 st.subheader("Distribución por Método de Captura")
-fig_metodos = px.bar(
-    cotizaciones.groupby("LLAMADA AL CLIENTE").size().reset_index(name="Cantidad"),
-    x="LLAMADA AL CLIENTE",
-    y="Cantidad",
-    color="LLAMADA AL CLIENTE",
-    title="Cantidad de Cotizaciones por Método de Captura",
-    labels={"LLAMADA AL CLIENTE": "Método de Captura", "Cantidad": "Número de Cotizaciones"}
-)
-fig_metodos.update_layout(xaxis_title="Método de Captura", yaxis_title="Cantidad")
-st.plotly_chart(fig_metodos)
+if "LLAMADA AL CLIENTE" in cotizaciones.columns:
+    fig_metodos = px.bar(
+        cotizaciones.groupby("LLAMADA AL CLIENTE").size().reset_index(name="Cantidad"),
+        x="LLAMADA AL CLIENTE",
+        y="Cantidad",
+        color="LLAMADA AL CLIENTE",
+        title="Cantidad de Cotizaciones por Método de Captura",
+        labels={"LLAMADA AL CLIENTE": "Método de Captura", "Cantidad": "Número de Cotizaciones"}
+    )
+    fig_metodos.update_layout(xaxis_title="Método de Captura", yaxis_title="Cantidad")
+    st.plotly_chart(fig_metodos)
+else:
+    st.warning("No se encontraron datos para los métodos de captura.")
 
 # Sección de comentarios por cliente
 st.subheader("Comentarios por Cliente")
 cliente_comentarios = st.selectbox("Selecciona un cliente para ver o editar comentarios:", cotizaciones["CLIENTE"].unique())
-comentario_actual = cotizaciones[cotizaciones["CLIENTE"] == cliente_comentarios]["Comentarios"].values[0]
+comentario_actual = cotizaciones[cotizaciones["CLIENTE"] == cliente_comentarios].get("Comentarios", "Sin comentarios").values[0]
 nuevo_comentario = st.text_area("Comentario Actual:", comentario_actual)
 if st.button("Actualizar Comentario"):
     cotizaciones.loc[cotizaciones["CLIENTE"] == cliente_comentarios, "Comentarios"] = nuevo_comentario
     st.success("Comentario actualizado correctamente.")
 # Continuación del Dashboard: Parte 2
-import plotly.express as px
 
-# Sección: Edición de datos
+# Sección: Edición de datos de clientes
 st.subheader("Edición de Datos de Clientes")
 cliente_a_editar = st.selectbox("Selecciona un cliente para editar:", cotizaciones["CLIENTE"].unique())
 columna_a_editar = st.selectbox(
@@ -123,11 +125,11 @@ if st.button("Aplicar Cambios"):
         if columna_a_editar in ["MONTO", "DIAS"]:
             nuevo_valor = float(nuevo_valor)
         cotizaciones.loc[cotizaciones["CLIENTE"] == cliente_a_editar, columna_a_editar] = nuevo_valor
-        st.success("Los cambios se han aplicado correctamente.")
+        st.success("¡Los cambios se han aplicado correctamente!")
     except ValueError:
         st.error("El valor ingresado no es válido para la columna seleccionada.")
 
-# Sección: Análisis por vendedor
+# Análisis por vendedor
 st.subheader("Análisis por Vendedor")
 tabla_vendedores = cotizaciones.groupby("VENDEDOR").agg(
     Total_Cotizaciones=("CLIENTE", "count"),
@@ -150,7 +152,7 @@ fig_vendedores = px.bar(
 fig_vendedores.update_layout(xaxis_title="Vendedor", yaxis_title="Monto Total", xaxis_tickangle=-45)
 st.plotly_chart(fig_vendedores)
 
-# Sección: Reporte automático
+# Reporte automático de cotizaciones aprobadas
 st.subheader("Reporte Automático de Cotizaciones Aprobadas")
 nuevas_aprobadas = cotizaciones[cotizaciones["Semaforo"] == "🟢 Aprobada"]
 if not nuevas_aprobadas.empty:
@@ -165,20 +167,18 @@ if not nuevas_aprobadas.empty:
 else:
     st.info("No se han encontrado nuevas cotizaciones aprobadas.")
 
-# Sección: Exportar datos
-st.subheader("Exportar Datos Actualizados")
+# Exportar datos completos
+st.subheader("Exportar Datos Completos")
 st.download_button(
-    label="Descargar Datos Completos",
+    label="Descargar Datos Actuales",
     data=cotizaciones.to_csv(index=False).encode("utf-8"),
     file_name="cotizaciones_actualizadas.csv",
     mime="text/csv"
 )
-# Continuación del Dashboard: Parte 3
 
 # Sección: Análisis de Pronósticos
 st.subheader("Pronóstico de Ventas")
 
-# Preparación de datos para pronóstico
 def preparar_datos_pronostico(df, columna_tiempo="FECHA ENVIO", columna_valor="MONTO"):
     df[columna_tiempo] = pd.to_datetime(df[columna_tiempo], errors="coerce")
     df = df.groupby(df[columna_tiempo].dt.to_period("M"))[columna_valor].sum().reset_index()
