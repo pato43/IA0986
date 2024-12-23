@@ -271,3 +271,82 @@ if not datos_filtrados.empty:
     )
 else:
     st.warning("No hay datos disponibles para exportar.")
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
+# Continuación del dashboard: Parte 4
+st.header("Pronósticos y Análisis de Ventas")
+
+# Configuración para simulaciones en caso de datos faltantes
+def preparar_datos_pronostico(df, columna_tiempo="Fecha_Envio", columna_valor="Monto"):
+    df[columna_tiempo] = pd.to_datetime(df[columna_tiempo], errors="coerce").fillna(pd.Timestamp.now())
+    df = df.groupby(df[columna_tiempo].dt.to_period("M"))[columna_valor].sum().reset_index()
+    df[columna_tiempo] = df[columna_tiempo].dt.to_timestamp()
+    return df
+
+datos_pronostico = preparar_datos_pronostico(cotizaciones)
+
+# Pronóstico de ventas usando Holt-Winters
+modelo = ExponentialSmoothing(
+    datos_pronostico["Monto"],
+    seasonal="add", 
+    seasonal_periods=12,
+    trend="add"
+)
+modelo_ajustado = modelo.fit()
+pronostico = modelo_ajustado.forecast(steps=12)
+
+# Gráfico: Pronósticos de Venta (Barras)
+st.subheader("Pronóstico de Ventas por Mes")
+fig_pronostico = px.bar(
+    x=datos_pronostico["Fecha_Envio"].tolist() + pronostico.index.tolist(),
+    y=datos_pronostico["Monto"].tolist() + pronostico.tolist(),
+    labels={"x": "Fecha", "y": "Monto"},
+    title="Pronóstico de Ventas por Mes",
+    color_discrete_sequence=["blue"]
+)
+fig_pronostico.update_layout(xaxis_title="Mes", yaxis_title="Monto Total")
+st.plotly_chart(fig_pronostico)
+
+# Gráfico: Cotizado por Mes (Líneas)
+st.subheader("Cotizado por Mes")
+fig_cotizado = px.line(
+    datos_pronostico,
+    x="Fecha_Envio",
+    y="Monto",
+    title="Monto Cotizado por Mes",
+    labels={"Fecha_Envio": "Mes", "Monto": "Monto Total"},
+    markers=True
+)
+fig_cotizado.update_layout(xaxis_title="Mes", yaxis_title="Monto Cotizado")
+st.plotly_chart(fig_cotizado)
+
+# Pronóstico para el siguiente mes
+st.subheader("Pronóstico para el Siguiente Mes")
+ultimo_mes = datos_pronostico["Fecha_Envio"].iloc[-1]
+proximo_mes = ultimo_mes + pd.DateOffset(months=1)
+proximo_valor = pronostico.iloc[0]
+st.metric(
+    label="Pronóstico para el Próximo Mes",
+    value=f"${proximo_valor:,.2f}",
+    delta=f"{((proximo_valor - datos_pronostico["Monto"].iloc[-1]) / datos_pronostico["Monto"].iloc[-1]) * 100:.2f}%"
+)
+
+# Gráfico: Pronóstico Anual (Líneas)
+st.subheader("Pronóstico Anual Consolidado")
+anios = [2023, 2024]
+montos_anuales = [
+    datos_pronostico["Monto"].sum(),
+    pronostico.sum()
+]
+fig_anual = px.line(
+    x=anios,
+    y=montos_anuales,
+    title="Pronóstico de Ventas Anuales",
+    labels={"x": "Año", "y": "Monto Total"},
+    markers=True
+)
+fig_anual.update_layout(xaxis_title="Año", yaxis_title="Monto Total")
+st.plotly_chart(fig_anual)
+
+st.markdown("---")
+st.info("Los pronósticos se basan en datos históricos y modelos estadísticos para ayudar en la toma de decisiones.")
