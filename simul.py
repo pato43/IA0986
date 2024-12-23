@@ -9,7 +9,7 @@ st.sidebar.title("Configuración del Dashboard")
 st.sidebar.markdown("Selecciona las opciones para filtrar los datos:")
 
 # Load Data from GitHub Repository
-GITHUB_URL = "<INSERT_GITHUB_RAW_CSV_LINK_HERE>"
+GITHUB_URL = "<https://github.com/pato43/IA0986/raw/refs/heads/main/tablas%20ordenadas%20.csv>"
 st.sidebar.markdown(f"[Fuente de datos en GitHub]({GITHUB_URL})")
 
 @st.cache_data
