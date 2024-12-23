@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Título del dashboard con diseño mejorado
+# Estilo personalizado
 st.markdown(
     """
     <style>
@@ -29,7 +29,17 @@ st.markdown(
         margin-top: -10px;
         margin-bottom: 40px;
     }
+    .sidebar .sidebar-content {
+        background-color: #f4f4f9;
+    }
     </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Título del dashboard con diseño mejorado
+st.markdown(
+    """
     <h1 class="title">Dashboard de Cotizaciones</h1>
     <p class="subtitle">Optimiza la gestión de tus cotizaciones con análisis interactivo</p>
     """,
@@ -39,7 +49,7 @@ st.markdown(
 # Menú de navegación
 menu = st.sidebar.radio(
     "Navegación",
-    ["Vista Previa", "Editar Datos", "Estados y Análisis"],
+    ["Vista Previa", "Editar Datos", "Análisis de Estados y Ventas"],
     index=0
 )
 
@@ -62,7 +72,12 @@ cotizaciones = cargar_datos(FILE_PATH)
 if menu == "Vista Previa":
     st.subheader("Vista Previa de Datos")
     if not cotizaciones.empty:
+        st.write("Tabla Completa de Cotizaciones:")
         st.dataframe(cotizaciones, use_container_width=True)
+
+        st.write("Tabla Resumida con Campos Esenciales:")
+        columnas_esenciales = ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus"]
+        st.dataframe(cotizaciones[columnas_esenciales], use_container_width=True)
     else:
         st.warning("No se encontraron datos en el archivo.")
 
@@ -93,8 +108,8 @@ if menu == "Editar Datos":
     else:
         st.warning("No se encontraron datos para editar.")
 
-if menu == "Estados y Análisis":
-    st.subheader("Estados de Cotizaciones")
+if menu == "Análisis de Estados y Ventas":
+    st.subheader("Análisis de Estados")
     if not cotizaciones.empty:
         def asignar_estado(avance):
             if avance == 100:
@@ -128,49 +143,57 @@ if menu == "Estados y Análisis":
         ).agg(Total_Monto=("Monto", "sum")).reset_index()
         ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
 
+        # Limpiar datos de ventas mensuales
+        ventas_mensuales = ventas_mensuales.dropna(subset=["Total_Monto"])
+        ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
+
         ventas_mensuales["Mes"] = range(len(ventas_mensuales))
         X = ventas_mensuales[["Mes"]]
         y = ventas_mensuales["Total_Monto"]
 
-        modelo = LinearRegression()
-        modelo.fit(X, y)
+        if len(X) > 0 and len(y) > 0:
+            modelo = LinearRegression()
+            modelo.fit(X, y)
 
-        meses_futuros = 12
-        nuevos_meses = pd.DataFrame({"Mes": range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)})
-        predicciones = modelo.predict(nuevos_meses)
+            meses_futuros = 12
+            nuevos_meses = pd.DataFrame({"Mes": range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)})
+            predicciones = modelo.predict(nuevos_meses)
 
-        futuras_fechas = pd.date_range(
-            start=ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1),
-            periods=meses_futuros,
-            freq="M"
-        )
+            futuras_fechas = pd.date_range(
+                start=ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1),
+                periods=meses_futuros,
+                freq="M"
+            )
 
-        ventas_pronostico = pd.DataFrame({
-            "Fecha": futuras_fechas,
-            "Total_Monto": predicciones,
-            "Tipo": "Pronóstico"
-        })
+            ventas_pronostico = pd.DataFrame({
+                "Fecha": futuras_fechas,
+                "Total_Monto": predicciones,
+                "Tipo": "Pronóstico"
+            })
 
-        ventas_historico = ventas_mensuales.copy()
-        ventas_historico["Tipo"] = "Histórico"
+            ventas_historico = ventas_mensuales.copy()
+            ventas_historico["Tipo"] = "Histórico"
 
-        ventas_completo = pd.concat([ventas_historico, ventas_pronostico])
+            ventas_completo = pd.concat([ventas_historico, ventas_pronostico])
 
-        fig_pronostico = px.line(
-            ventas_completo,
-            x="Fecha",
-            y="Total_Monto",
-            color="Tipo",
-            title="Pronóstico de Ventas Mensuales",
-            labels={"Total_Monto": "Monto Total", "Fecha": "Fecha"},
-            color_discrete_map={"Histórico": "blue", "Pronóstico": "orange"}
-        )
-        fig_pronostico.update_traces(mode="lines+markers")
-        st.plotly_chart(fig_pronostico, use_container_width=True)
+            fig_pronostico = px.line(
+                ventas_completo,
+                x="Fecha",
+                y="Total_Monto",
+                color="Tipo",
+                title="Pronóstico de Ventas Mensuales",
+                labels={"Total_Monto": "Monto Total", "Fecha": "Fecha"},
+                color_discrete_map={"Histórico": "blue", "Pronóstico": "orange"}
+            )
+            fig_pronostico.update_traces(mode="lines+markers")
+            st.plotly_chart(fig_pronostico, use_container_width=True)
+        else:
+            st.warning("No hay datos suficientes para generar el pronóstico.")
     else:
         st.warning("No se encontraron datos para analizar.")
-# Parte 2: Análisis Avanzado y Pronósticos Interactivos
+# Parte 2: Análisis Avanzado y Visualización Interactiva
 
+# Análisis de Cotizaciones 2020-2021
 st.subheader("Análisis de Cotizaciones 2020-2021")
 
 cotizaciones_fechas = cotizaciones.copy()
@@ -208,50 +231,57 @@ ventas_mensuales = cotizaciones_fechas.groupby(
 ).agg(Total_Monto=("Monto", "sum")).reset_index()
 ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
 
+# Limpiar datos de ventas mensuales
+ventas_mensuales = ventas_mensuales.dropna(subset=["Total_Monto"])
+ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
+
 # Modelo de pronóstico
 ventas_mensuales["Mes"] = range(len(ventas_mensuales))
 X = ventas_mensuales[["Mes"]]
 y = ventas_mensuales["Total_Monto"]
 
 # Ajuste del modelo
-modelo = LinearRegression()
-modelo.fit(X, y)
+if len(X) > 0 and len(y) > 0:
+    modelo = LinearRegression()
+    modelo.fit(X, y)
 
-# Predicciones futuras
-meses_futuros = 12
-nuevos_meses = pd.DataFrame({"Mes": range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)})
-predicciones = modelo.predict(nuevos_meses)
+    # Predicciones futuras
+    meses_futuros = 12
+    nuevos_meses = pd.DataFrame({"Mes": range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)})
+    predicciones = modelo.predict(nuevos_meses)
 
-# Preparar datos para el gráfico
-futuras_fechas = pd.date_range(
-    start=ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1),
-    periods=meses_futuros,
-    freq="M"
-)
+    # Preparar datos para el gráfico
+    futuras_fechas = pd.date_range(
+        start=ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1),
+        periods=meses_futuros,
+        freq="M"
+    )
 
-ventas_pronostico = pd.DataFrame({
-    "Fecha": futuras_fechas,
-    "Total_Monto": predicciones,
-    "Tipo": "Pronóstico"
-})
+    ventas_pronostico = pd.DataFrame({
+        "Fecha": futuras_fechas,
+        "Total_Monto": predicciones,
+        "Tipo": "Pronóstico"
+    })
 
-ventas_historico = ventas_mensuales.copy()
-ventas_historico["Tipo"] = "Histórico"
+    ventas_historico = ventas_mensuales.copy()
+    ventas_historico["Tipo"] = "Histórico"
 
-ventas_completo = pd.concat([ventas_historico, ventas_pronostico])
+    ventas_completo = pd.concat([ventas_historico, ventas_pronostico])
 
-# Gráfico: Pronóstico de Ventas Mensuales
-fig_pronostico = px.line(
-    ventas_completo,
-    x="Fecha",
-    y="Total_Monto",
-    color="Tipo",
-    title="Pronóstico de Ventas Mensuales",
-    labels={"Total_Monto": "Monto Total", "Fecha": "Fecha"},
-    color_discrete_map={"Histórico": "blue", "Pronóstico": "orange"}
-)
-fig_pronostico.update_traces(mode="lines+markers")
-st.plotly_chart(fig_pronostico, use_container_width=True)
+    # Gráfico: Pronóstico de Ventas Mensuales
+    fig_pronostico = px.line(
+        ventas_completo,
+        x="Fecha",
+        y="Total_Monto",
+        color="Tipo",
+        title="Pronóstico de Ventas Mensuales",
+        labels={"Total_Monto": "Monto Total", "Fecha": "Fecha"},
+        color_discrete_map={"Histórico": "blue", "Pronóstico": "orange"}
+    )
+    fig_pronostico.update_traces(mode="lines+markers")
+    st.plotly_chart(fig_pronostico, use_container_width=True)
+else:
+    st.warning("No hay datos suficientes para realizar el pronóstico.")
 
 # Resumen de Pronósticos
 st.subheader("Resumen Detallado de Pronósticos")
@@ -266,7 +296,7 @@ with col2:
     st.metric("Ventas Pronosticadas Totales", f"${total_pronostico:,.2f}")
 
 with col3:
-    crecimiento_estimado = (total_pronostico / total_historico - 1) * 100
+    crecimiento_estimado = (total_pronostico / total_historico - 1) * 100 if total_historico > 0 else 0
     st.metric("Crecimiento Estimado (%)", f"{crecimiento_estimado:.2f}%")
 # Parte 3: Filtros Dinámicos, Exportación y Métricas Finales
 
