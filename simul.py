@@ -1,268 +1,185 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
+import numpy as np
 
-# Title and Sidebar Configuration
-st.set_page_config(page_title="Dashboard de Cotizaciones", layout="wide")
-st.sidebar.title("Configuración del Dashboard")
-st.sidebar.markdown("Selecciona las opciones para filtrar los datos:")
-
-# Load Data from GitHub Repository
-GITHUB_URL = "<https://github.com/pato43/IA0986/raw/refs/heads/main/tablas%20ordenadas%20.csv>"
-st.sidebar.markdown(f"[Fuente de datos en GitHub]({GITHUB_URL})")
-
+# Carga de datos desde un archivo alojado en GitHub
 @st.cache_data
 def load_data():
-    """Carga los datos desde un repositorio de GitHub."""
-    data = pd.read_excel(GITHUB_URL)
-    data.columns = data.columns.str.strip()  # Remove leading/trailing spaces
+    url = "https://raw.githubusercontent.com/usuario/repositorio/main/archivo.xlsx"
+    data = pd.read_excel(url)
     return data
 
 data = load_data()
 
-# Columns Overview
-columns_overview = {
-    "AREA": "Categoría o tipo de proyecto.",
-    "CLIENTE": "Cliente asociado al proyecto.",
-    "CONCEPTO": "Descripción del trabajo o proyecto.",
-    "CLASIFICACION": "Nivel del proyecto (A, AA, AAA).",
-    "VENDEDOR": "Persona responsable de la cotización.",
-    "FECHA INICIO": "Fecha de inicio del proyecto.",
-    "DIAS": "Duración del proyecto (estimada o real).",
-    "FECHA ENVIO": "Fecha en que se envía el proyecto.",
-    "MONTO": "Monto de la cotización en pesos.",
-    "ESTATUS": "Estado actual del proyecto (pendiente, completado).",
-    "AVANCE%": "Progreso del proyecto en porcentaje.",
-    "Pronostico con metodo de suavizacion exponencial": "Estimación de ventas basada en datos históricos.",
-    "Cotizado del mes": "Monto cotizado durante un mes específico.",
-    "PRONOSTICO X AREA": "Estimaciones basadas en áreas específicas.",
-    "N° de cotizaciones realizadas": "Total de cotizaciones generadas."
-}
+# Layout general del dashboard
+st.set_page_config(page_title="Dashboard de Cotizaciones", layout="wide")
+st.title("Dashboard de Cotizaciones y Pronósticos")
 
-# Display Data Overview
-st.markdown("## Vista General de los Datos")
-with st.expander("Detalles de columnas"):
-    for col, desc in columns_overview.items():
-        st.markdown(f"**{col}**: {desc}")
+# Sidebar
+st.sidebar.header("Opciones de Filtrado")
 
-# Sidebar Filters
-selected_area = st.sidebar.multiselect(
-    "Selecciona el área:",
-    options=data["AREA"].unique(),
-    default=data["AREA"].unique()
+# Filtrado de datos
+clientes = st.sidebar.multiselect(
+    "Selecciona Cliente(s)", options=data["CLIENTE"].unique(), default=data["CLIENTE"].unique()
+)
+clasificaciones = st.sidebar.multiselect(
+    "Selecciona Clasificación(es)", options=data["CLASIFICACION"].dropna().unique(), default=data["CLASIFICACION"].unique()
 )
 
-selected_vendedor = st.sidebar.multiselect(
-    "Selecciona el vendedor:",
-    options=data["VENDEDOR"].unique(),
-    default=data["VENDEDOR"].unique()
+fecha_inicio = st.sidebar.date_input(
+    "Fecha de inicio mínima", value=pd.to_datetime(data["FECHA INICIO"].min())
 )
 
-selected_client = st.sidebar.multiselect(
-    "Selecciona el cliente:",
-    options=data["CLIENTE"].unique(),
-    default=data["CLIENTE"].unique()
+fecha_fin = st.sidebar.date_input(
+    "Fecha de inicio máxima", value=pd.to_datetime(data["FECHA INICIO"].max())
 )
 
-# Filter Data Based on Selections
 filtered_data = data[
-    (data["AREA"].isin(selected_area)) &
-    (data["VENDEDOR"].isin(selected_vendedor)) &
-    (data["CLIENTE"].isin(selected_client))
+    (data["CLIENTE"].isin(clientes)) &
+    (data["CLASIFICACION"].isin(clasificaciones)) &
+    (pd.to_datetime(data["FECHA INICIO"]) >= pd.to_datetime(fecha_inicio)) &
+    (pd.to_datetime(data["FECHA INICIO"]) <= pd.to_datetime(fecha_fin))
 ]
 
-# Display Filtered Data
-st.markdown("### Datos Filtrados")
-st.dataframe(filtered_data)
+# Sección 1: Resumen general
+st.markdown("## Resumen General")
 
-# Section 1: Cotizaciones y Montos por Área
-st.markdown("## Cotizaciones y Montos por Área")
-area_summary = (
-    filtered_data.groupby("AREA")["MONTO"].sum().reset_index().sort_values(by="MONTO", ascending=False)
+col1, col2, col3 = st.columns(3)
+col1.metric("Monto Total Cotizado", f"${filtered_data['MONTO'].sum():,.2f}")
+col2.metric("Proyectos Totales", len(filtered_data))
+col3.metric("Duración Promedio (días)", f"{filtered_data['DIAS'].mean():.1f}")
+
+# Sección 2: Pronóstico Mensual
+st.markdown("## Pronóstico Mensual")
+
+pronostico_mensual = (
+    filtered_data.groupby(filtered_data["FECHA INICIO"].dt.to_period("M")).sum()["MONTO"].reset_index()
 )
+pronostico_mensual["FECHA INICIO"] = pronostico_mensual["FECHA INICIO"].dt.to_timestamp()
 
-fig_area = px.bar(
-    area_summary,
-    x="AREA",
-    y="MONTO",
-    title="Monto Total Cotizado por Área",
-    labels={"MONTO": "Monto (MXN)", "AREA": "Área"},
-    text_auto=True,
-    color="MONTO",
-    color_continuous_scale="Blues"
-)
-
-st.plotly_chart(fig_area, use_container_width=True)
-
-# Section 2: Pronóstico de Ventas (Suavización Exponencial)
-st.markdown("## Pronóstico de Ventas Mensual (Suavización Exponencial)")
-
-# Extract Pronóstico Data
-forecast_data = filtered_data[["FECHA INICIO", "Pronostico con metodo de suavizacion exponencial"]]
-forecast_data["FECHA INICIO"] = pd.to_datetime(forecast_data["FECHA INICIO"], errors="coerce")
-forecast_data = forecast_data.dropna(subset=["FECHA INICIO", "Pronostico con metodo de suavizacion exponencial"])
-forecast_data = forecast_data.groupby(forecast_data["FECHA INICIO"].dt.to_period("M")).sum().reset_index()
-forecast_data["FECHA INICIO"] = forecast_data["FECHA INICIO"].dt.to_timestamp()
-
-fig_forecast = px.line(
-    forecast_data,
+fig_pronostico_mensual = px.line(
+    pronostico_mensual,
     x="FECHA INICIO",
-    y="Pronostico con metodo de suavizacion exponencial",
-    title="Pronóstico de Ventas Mensual",
-    labels={"FECHA INICIO": "Fecha", "Pronostico con metodo de suavizacion exponencial": "Monto Pronosticado (MXN)"},
+    y="MONTO",
+    title="Pronóstico Mensual con Suavización Exponencial",
+    labels={"MONTO": "Monto (MXN)", "FECHA INICIO": "Fecha"},
     markers=True
 )
 
-st.plotly_chart(fig_forecast, use_container_width=True)
+st.plotly_chart(fig_pronostico_mensual, use_container_width=True)
 
-# Section 3: Avance de Proyectos y Control de Colores
-st.markdown("## Avance de Proyectos y Control de Colores")
+# Sección 3: Análisis por Clasificación
+st.markdown("## Análisis por Clasificación")
 
-# Define Colors Based on Progress
-def assign_status_color(avance):
-    if avance < 50:
-        return "Rojo"
-    elif avance < 100:
-        return "Amarillo"
-    else:
-        return "Verde"
-
-filtered_data["Estatus Color"] = filtered_data["AVANCE%"].apply(assign_status_color)
-
-color_summary = (
-    filtered_data.groupby("Estatus Color")["CONCEPTO"].count().reset_index()
-)
-color_summary.columns = ["Estatus", "Proyectos"]
-
-fig_colors = px.pie(
-    color_summary,
-    values="Proyectos",
-    names="Estatus",
-    title="Distribución de Proyectos por Estatus de Color",
-    color="Estatus",
-    color_discrete_map={"Rojo": "red", "Amarillo": "yellow", "Verde": "green"}
+clasificacion_data = (
+    filtered_data.groupby("CLASIFICACION")["MONTO"].sum().reset_index()
+    .sort_values(by="MONTO", ascending=False)
 )
 
-st.plotly_chart(fig_colors, use_container_width=True)
-
-# Additional Notes
-st.sidebar.info("Puedes ajustar los filtros para explorar diferentes segmentos de datos.")
-# Section 4: Análisis de Cotizaciones por Vendedor
-st.markdown("## Análisis de Cotizaciones por Vendedor")
-
-vendedor_summary = (
-    filtered_data.groupby("VENDEDOR")["MONTO"].sum().reset_index().sort_values(by="MONTO", ascending=False)
-)
-
-fig_vendedor = px.bar(
-    vendedor_summary,
-    x="VENDEDOR",
+fig_clasificacion = px.bar(
+    clasificacion_data,
+    x="CLASIFICACION",
     y="MONTO",
-    title="Monto Total Cotizado por Vendedor",
-    labels={"MONTO": "Monto (MXN)", "VENDEDOR": "Vendedor"},
-    text_auto=True,
-    color="MONTO",
-    color_continuous_scale="Viridis"
-)
-
-st.plotly_chart(fig_vendedor, use_container_width=True)
-
-# Section 5: Distribución de Duración de Proyectos
-st.markdown("## Distribución de Duración de Proyectos")
-
-fig_duracion = px.histogram(
-    filtered_data,
-    x="DIAS",
-    nbins=20,
-    title="Distribución de la Duración de Proyectos",
-    labels={"DIAS": "Duración (días)"},
-    color_discrete_sequence=["teal"]
-)
-
-st.plotly_chart(fig_duracion, use_container_width=True)
-
-# Section 6: Pronóstico Anual con Suavización Exponencial
-st.markdown("## Pronóstico Anual con Suavización Exponencial")
-
-annual_forecast_data = filtered_data[["FECHA INICIO", "Pronostico con metodo de suavizacion exponencial"]]
-annual_forecast_data["FECHA INICIO"] = pd.to_datetime(annual_forecast_data["FECHA INICIO"], errors="coerce")
-annual_forecast_data = annual_forecast_data.dropna(subset=["FECHA INICIO", "Pronostico con metodo de suavizacion exponencial"])
-annual_forecast_data = annual_forecast_data.groupby(annual_forecast_data["FECHA INICIO"].dt.year).sum().reset_index()
-annual_forecast_data.columns = ["Año", "Monto Pronosticado"]
-
-fig_annual_forecast = px.bar(
-    annual_forecast_data,
-    x="Año",
-    y="Monto Pronosticado",
-    title="Pronóstico Anual de Ventas",
-    labels={"Año": "Año", "Monto Pronosticado": "Monto Pronosticado (MXN)"},
-    text_auto=True,
-    color="Monto Pronosticado",
-    color_continuous_scale="Plasma"
-)
-
-st.plotly_chart(fig_annual_forecast, use_container_width=True)
-
-# Section 7: Comparación de Clasificaciones
-st.markdown("## Comparación de Clasificaciones")
-
-clasificacion_summary = (
-    filtered_data.groupby("CLASIFICACION")["MONTO"].sum().reset_index().sort_values(by="MONTO", ascending=False)
-)
-
-fig_clasificacion = px.pie(
-    clasificacion_summary,
-    values="MONTO",
-    names="CLASIFICACION",
-    title="Distribución de Montos por Clasificación",
+    title="Montos Totales por Clasificación",
+    labels={"MONTO": "Monto (MXN)", "CLASIFICACION": "Clasificación"},
     color="CLASIFICACION",
-    color_discrete_sequence=px.colors.qualitative.Set2
+    text_auto=True
 )
 
 st.plotly_chart(fig_clasificacion, use_container_width=True)
 
-# Section 8: Control de Progreso por Cliente
-st.markdown("## Control de Progreso por Cliente")
+# Sección 4: Control de colores para estados
+st.markdown("## Control de Estados por Progreso")
 
-client_progress = filtered_data.groupby("CLIENTE")["AVANCE%"].mean().reset_index()
-client_progress = client_progress.sort_values(by="AVANCE%", ascending=False)
+estado_colores = filtered_data.copy()
 
-fig_client_progress = px.bar(
-    client_progress,
-    x="CLIENTE",
-    y="AVANCE%",
-    title="Progreso Promedio por Cliente",
-    labels={"AVANCE%": "Avance (%)", "CLIENTE": "Cliente"},
-    text_auto=True,
-    color="AVANCE%",
-    color_continuous_scale="Sunsetdark"
+estado_colores["Estado"] = np.where(
+    estado_colores["ESTATUS"] == "Completado", "Verde", np.where(
+        estado_colores["ESTATUS"] == "En Proceso", "Amarillo", "Rojo"
+    )
 )
 
-st.plotly_chart(fig_client_progress, use_container_width=True)
+fig_estado_colores = px.histogram(
+    estado_colores,
+    x="Estado",
+    title="Distribución de Estados por Color",
+    color="Estado",
+    color_discrete_map={"Verde": "green", "Amarillo": "yellow", "Rojo": "red"}
+)
 
-# Section 9: Métricas Clave
-st.markdown("## Métricas Clave")
+st.plotly_chart(fig_estado_colores, use_container_width=True)
+# Sección 5: Pronóstico Anual
+st.markdown("## Pronóstico Anual con Suavización Exponencial")
 
-metric_col1, metric_col2, metric_col3 = st.columns(3)
-metric_col1.metric("Monto Total Cotizado", f"${filtered_data['MONTO'].sum():,.2f}")
-metric_col2.metric("Proyectos Activos", f"{len(filtered_data)}")
-metric_col3.metric("Avance Promedio", f"{filtered_data['AVANCE%'].mean():.2f}%")
+def suavizacion_exponencial(data, alpha):
+    pronostico = [data[0]]
+    for n in range(1, len(data)):
+        pronostico.append(alpha * data[n] + (1 - alpha) * pronostico[n-1])
+    return pronostico
 
-# Section 10: Exportar Datos
-st.markdown("## Exportar Datos")
+ventas_anuales = (
+    filtered_data.groupby(filtered_data["FECHA INICIO"].dt.year).sum()["MONTO"].reset_index()
+)
+ventas_anuales.rename(columns={"FECHA INICIO": "AÑO", "MONTO": "VENTAS"}, inplace=True)
 
-@st.cache_data
-def convert_df(df):
-    """Convierte un DataFrame a CSV para su descarga."""
+alpha = st.sidebar.slider("Nivel de Suavización (α)", min_value=0.01, max_value=1.0, value=0.5, step=0.01)
+ventas_anuales["PRONOSTICO"] = suavizacion_exponencial(ventas_anuales["VENTAS"].tolist(), alpha)
+
+fig_pronostico_anual = px.line(
+    ventas_anuales,
+    x="AÑO",
+    y=["VENTAS", "PRONOSTICO"],
+    title="Pronóstico Anual con Suavización Exponencial",
+    labels={"value": "Monto (MXN)", "variable": "Serie"},
+    markers=True
+)
+
+st.plotly_chart(fig_pronostico_anual, use_container_width=True)
+
+# Sección 6: Distribución por Vendedor
+st.markdown("## Análisis por Vendedor")
+
+vendedor_data = (
+    filtered_data.groupby("VENDEDOR")["MONTO"].sum().reset_index()
+    .sort_values(by="MONTO", ascending=False)
+)
+
+fig_vendedor = px.bar(
+    vendedor_data,
+    x="VENDEDOR",
+    y="MONTO",
+    title="Montos Totales por Vendedor",
+    labels={"MONTO": "Monto (MXN)", "VENDEDOR": "Vendedor"},
+    color="MONTO",
+    text_auto=True
+)
+
+st.plotly_chart(fig_vendedor, use_container_width=True)
+
+# Sección 7: Comentarios y Observaciones
+st.markdown("## Comentarios y Observaciones")
+
+comentarios = filtered_data[["CLIENTE", "CONCEPTO", "ESTATUS", "COMENTARIOS"]].copy()
+comentarios = comentarios.dropna(subset=["COMENTARIOS"])
+
+st.dataframe(comentarios, use_container_width=True)
+
+# Exportación de Datos Filtrados
+st.markdown("## Exportar Datos Filtrados")
+
+def convertir_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
-csv_data = convert_df(filtered_data)
+data_csv = convertir_csv(filtered_data)
 st.download_button(
-    label="Descargar datos filtrados como CSV",
-    data=csv_data,
+    label="Descargar Datos Filtrados",
+    data=data_csv,
     file_name="datos_filtrados.csv",
     mime="text/csv"
 )
 
-st.success("Dashboard actualizado y operativo.")
+# Pie de Página
+st.markdown("---")
+st.markdown(
+    "**Desarrollado por [Tu Nombre o Empresa](https://github.com/usuario/repositorio)** | © 2024"
