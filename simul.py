@@ -11,10 +11,11 @@ st.set_page_config(
 )
 
 # Título del dashboard
-st.title("Dashboard de Cotizaciones - Lectura Rápida y Funcionalidades Esenciales")
+st.title("Dashboard de Cotizaciones")
 st.markdown(
     """
-    Este dashboard permite analizar, filtrar y editar datos esenciales de las cotizaciones de manera interactiva y eficiente. 
+    Este dashboard organiza las cotizaciones para facilitar el análisis, pronóstico y toma de decisiones. 
+    Utiliza las secciones a continuación para explorar y gestionar la información.
     """
 )
 
@@ -30,132 +31,118 @@ cotizaciones = cargar_datos(FILE_PATH)
 
 # Validación y limpieza de columnas necesarias
 columnas_necesarias = [
-    "Area", "Cliente", "Concepto", "Clasificacion", "Vendedor", "Fecha_Inicio", "Duracion_Dias", 
-    "Monto", "Estatus", "Avance_Porcentaje", "2020", "2021", "Pronostico_Suavizado"
+    "Area", "Cliente", "Monto", "Estatus", "Avance_Porcentaje", "2020", "2021", "Pronostico_Suavizado"
 ]
-
-# Validar existencia de columnas
 datos_validados = cotizaciones[[col for col in columnas_necesarias if col in cotizaciones.columns]].copy()
 
+# Limpieza de datos
 def limpiar_y_convertir(df, columna, tipo):
     if tipo == "numerico":
         df[columna] = pd.to_numeric(df[columna].replace({"$": "", ",": ""}, regex=True), errors="coerce").fillna(0)
-    elif tipo == "fecha":
-        df[columna] = pd.to_datetime(df[columna], errors="coerce")
     elif tipo == "texto":
         df[columna] = df[columna].fillna("Desconocido")
+    elif tipo == "fecha":
+        df[columna] = pd.to_datetime(df[columna], errors="coerce")
 
-# Aplicar limpieza a las columnas necesarias
 limpiar_y_convertir(datos_validados, "Monto", "numerico")
 limpiar_y_convertir(datos_validados, "Avance_Porcentaje", "numerico")
-limpiar_y_convertir(datos_validados, "Fecha_Inicio", "fecha")
 limpiar_y_convertir(datos_validados, "Cliente", "texto")
 limpiar_y_convertir(datos_validados, "Estatus", "texto")
 
-# Semáforo en la tabla
-st.subheader("Estado de Cotizaciones (Semáforo)")
-def asignar_estado(avance):
-    if avance == 100:
-        return "🟢 Aprobada"
-    elif avance >= 50:
-        return "🟡 Pendiente"
-    else:
-        return "🔴 Rechazada"
+# Layout Mejorado
+menu = st.tabs(["Vista General", "Tablas Detalladas", "Edición y Filtros"])
 
-datos_validados["Semaforo"] = datos_validados["Avance_Porcentaje"].apply(asignar_estado)
+# Vista General
+with menu[0]:
+    st.header("Vista General")
 
-# Tablas esenciales
-st.subheader("Tablas Esenciales para Lectura Rápida")
+    # Resumen General
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Cotizaciones", len(datos_validados))
+    col2.metric("Monto Total", f"${datos_validados['Monto'].sum():,.2f}")
+    promedio_avance = datos_validados['Avance_Porcentaje'].mean()
+    col3.metric("Avance Promedio", f"{promedio_avance:.2f}%")
 
-# Tabla 1: Resumen por cliente
-st.markdown("### Resumen por Cliente")
-tabla_cliente = datos_validados.groupby("Cliente").agg(
-    Total_Monto=("Monto", "sum"),
-    Promedio_Avance=("Avance_Porcentaje", "mean"),
-    Total_Cotizaciones=("Cliente", "count")
-).reset_index()
-st.dataframe(tabla_cliente, use_container_width=True)
+    # Gráfico General
+    fig_general = px.pie(
+        datos_validados,
+        names="Estatus",
+        values="Monto",
+        title="Distribución de Montos por Estatus",
+        color_discrete_sequence=px.colors.qualitative.Pastel
+    )
+    st.plotly_chart(fig_general)
 
-# Tabla 2: Resumen por área
-st.markdown("### Resumen por Área")
-tabla_area = datos_validados.groupby("Area").agg(
-    Total_Monto=("Monto", "sum"),
-    Promedio_Avance=("Avance_Porcentaje", "mean"),
-    Total_Cotizaciones=("Area", "count")
-).reset_index()
-st.dataframe(tabla_area, use_container_width=True)
+# Tablas Detalladas
+with menu[1]:
+    st.header("Tablas Detalladas")
 
-# Tabla 3: Resumen por estatus
-st.markdown("### Resumen por Estatus")
-tabla_estatus = datos_validados.groupby("Estatus").agg(
-    Total_Monto=("Monto", "sum"),
-    Promedio_Avance=("Avance_Porcentaje", "mean"),
-    Total_Cotizaciones=("Estatus", "count")
-).reset_index()
-st.dataframe(tabla_estatus, use_container_width=True)
+    # Tabla 1: Resumen por Cliente
+    st.subheader("Resumen por Cliente")
+    tabla_cliente = datos_validados.groupby("Cliente").agg(
+        Total_Monto=("Monto", "sum"),
+        Promedio_Avance=("Avance_Porcentaje", "mean"),
+        Total_Cotizaciones=("Cliente", "count")
+    ).reset_index()
+    st.dataframe(tabla_cliente, use_container_width=True)
 
-# Tabla 4: Resumen por Clasificación
-st.markdown("### Resumen por Clasificación")
-tabla_clasificacion = datos_validados.groupby("Clasificacion").agg(
-    Total_Monto=("Monto", "sum"),
-    Promedio_Avance=("Avance_Porcentaje", "mean"),
-    Total_Cotizaciones=("Clasificacion", "count")
-).reset_index()
-st.dataframe(tabla_clasificacion, use_container_width=True)
+    # Tabla 2: Resumen por Área
+    st.subheader("Resumen por Área")
+    tabla_area = datos_validados.groupby("Area").agg(
+        Total_Monto=("Monto", "sum"),
+        Promedio_Avance=("Avance_Porcentaje", "mean"),
+        Total_Cotizaciones=("Area", "count")
+    ).reset_index()
+    st.dataframe(tabla_area, use_container_width=True)
 
-# Filtros simples
-st.subheader("Filtros Simples para Navegación Rápida")
+    # Tabla 3: Resumen por Año
+    st.subheader("Resumen por Año")
+    tabla_anual = datos_validados[["2020", "2021"]].sum().reset_index()
+    tabla_anual.columns = ["Año", "Monto"]
+    st.dataframe(tabla_anual, use_container_width=True)
 
-# Filtro por cliente
-cliente_seleccionado = st.selectbox(
-    "Selecciona un cliente para filtrar:", options=["Todos"] + list(datos_validados["Cliente"].unique())
-)
+# Edición y Filtros
+with menu[2]:
+    st.header("Edición y Filtros")
 
-# Filtro por estado
-estado_seleccionado = st.selectbox(
-    "Selecciona un estado para filtrar:", options=["Todos"] + list(datos_validados["Estatus"].unique())
-)
+    # Filtros Simples
+    st.subheader("Filtros")
+    cliente_filtrado = st.selectbox("Selecciona un cliente para filtrar:", ["Todos"] + list(datos_validados["Cliente"].unique()))
+    estatus_filtrado = st.selectbox("Selecciona un estatus para filtrar:", ["Todos"] + list(datos_validados["Estatus"].unique()))
 
-# Aplicar filtros
-filtros = datos_validados.copy()
-if cliente_seleccionado != "Todos":
-    filtros = filtros[filtros["Cliente"] == cliente_seleccionado]
-if estado_seleccionado != "Todos":
-    filtros = filtros[filtros["Estatus"] == estado_seleccionado]
+    datos_filtrados = datos_validados.copy()
+    if cliente_filtrado != "Todos":
+        datos_filtrados = datos_filtrados[datos_filtrados["Cliente"] == cliente_filtrado]
+    if estatus_filtrado != "Todos":
+        datos_filtrados = datos_filtrados[datos_filtrados["Estatus"] == estatus_filtrado]
 
-# Mostrar resultados filtrados
-st.write("Resultados Filtrados:")
-st.dataframe(filtros, use_container_width=True)
+    st.dataframe(datos_filtrados, use_container_width=True)
 
-# Edición de Datos Esenciales
-st.subheader("Edición de Datos Esenciales")
-columna_editar = st.selectbox(
-    "Selecciona una columna para editar:", 
-    ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus", "Area"]
-)
+    # Edición Interactiva
+    st.subheader("Edición de Datos")
+    columna_editar = st.selectbox("Selecciona una columna para editar:", ["Monto", "Avance_Porcentaje", "Estatus"])
 
-if columna_editar in ["Monto", "Avance_Porcentaje"]:
-    nuevo_valor = st.number_input(f"Nuevo valor para la columna {columna_editar}", min_value=0.0)
-    if st.button("Actualizar valores"):
-        filtros[columna_editar] = nuevo_valor
-        st.success(f"Columna {columna_editar} actualizada correctamente.")
-else:
-    valores_unicos = filtros[columna_editar].unique()
-    nuevo_valor = st.text_input(f"Nuevo valor para la columna {columna_editar}")
-    valor_a_reemplazar = st.selectbox(f"Selecciona un valor a reemplazar en {columna_editar}", valores_unicos)
-    if st.button("Actualizar valores"):
-        filtros[columna_editar] = filtros[columna_editar].replace(valor_a_reemplazar, nuevo_valor)
-        st.success(f"Columna {columna_editar} actualizada correctamente.")
+    if columna_editar == "Monto":
+        nuevo_valor = st.number_input("Nuevo valor para Monto", min_value=0.0)
+        if st.button("Aplicar Edición"):
+            datos_filtrados[columna_editar] = nuevo_valor
+            st.success("Valores actualizados correctamente.")
+
+    elif columna_editar == "Estatus":
+        valor_reemplazo = st.text_input("Nuevo valor para Estatus")
+        if st.button("Aplicar Edición"):
+            datos_filtrados[columna_editar] = valor_reemplazo
+            st.success("Estatus actualizado correctamente.")
 # Continuación del Dashboard: Parte 2
 
 # Gráficos de Pronóstico y Tendencias
 st.subheader("Pronóstico y Análisis de Tendencias")
 
 # Datos para series de tiempo
-ventas_mensuales = datos_validados.groupby(pd.to_datetime(datos_validados["Fecha_Inicio"], errors="coerce").dt.to_period("M")).agg(
+ventas_mensuales = datos_validados.groupby(pd.to_datetime(datos_validados['2020'], errors='coerce').dt.to_period("M")).agg(
     Total_Monto=("Monto", "sum")
 ).reset_index()
-ventas_mensuales["Fecha"] = ventas_mensuales["Fecha_Inicio"].dt.to_timestamp()
+ventas_mensuales['Fecha'] = ventas_mensuales['2020'].dt.to_timestamp()
 
 # Validar datos antes de realizar gráficos
 if ventas_mensuales.empty:
@@ -307,7 +294,7 @@ cliente_seleccionado = st.selectbox(
 
 # Filtro por estado de semáforo
 estado_seleccionado = st.selectbox(
-    "Selecciona un estado para filtrar:", options=["Todos"] + list(datos_validados["Semaforo"].unique())
+    "Selecciona un estado para filtrar:", options=["Todos"] + list(datos_validados["Estatus"].unique())
 )
 
 # Aplicar filtros
@@ -315,7 +302,7 @@ filtros = datos_validados.copy()
 if cliente_seleccionado != "Todos":
     filtros = filtros[filtros["Cliente"] == cliente_seleccionado]
 if estado_seleccionado != "Todos":
-    filtros = filtros[filtros["Semaforo"] == estado_seleccionado]
+    filtros = filtros[filtros["Estatus"] == estado_seleccionado]
 
 # Mostrar resultados filtrados
 st.write("Resultados Filtrados:")
@@ -428,10 +415,8 @@ from pandas import ExcelWriter
 output = io.BytesIO()
 with ExcelWriter(output, engine="xlsxwriter") as writer:
     datos_validados.to_excel(writer, sheet_name="Cotizaciones", index=False)
-    tabla_cliente.to_excel(writer, sheet_name="Resumen_Cliente", index=False)
-    tabla_area.to_excel(writer, sheet_name="Resumen_Area", index=False)
-    tabla_estado.to_excel(writer, sheet_name="Resumen_Estado", index=False)
     tabla_cruzada.to_excel(writer, sheet_name="Cruzada_Area_Cliente")
+    tabla_estado.to_excel(writer, sheet_name="Resumen_Estado", index=False)
     writer.save()
 
 output.seek(0)
