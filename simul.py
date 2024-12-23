@@ -6,7 +6,7 @@ import numpy as np
 # Carga de datos desde un archivo alojado en GitHub
 @st.cache_data
 def load_data():
-    url = "https://raw.githubusercontent.com/usuario/repositorio/main/archivo.xlsx"
+    url = "https://github.com/pato43/IA0986/blob/main/tablas%20ordenadas%20.xlsx"
     data = pd.read_excel(url)
     return data
 
