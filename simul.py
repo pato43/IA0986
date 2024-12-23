@@ -100,3 +100,66 @@ if st.button("Aplicar Cambios"):
         st.success("¡El cambio ha sido aplicado con éxito!")
     except ValueError:
         st.error("El valor introducido no es válido para la columna seleccionada.")
+
+# Continuación del dashboard: Parte 2
+st.header("Análisis por Vendedor y Clasificación")
+
+# Análisis por Vendedor
+st.subheader("Desempeño por Vendedor")
+
+tabla_vendedores = cotizaciones.groupby("Metodo_Captura").agg(
+    Total_Cotizaciones=("Cliente", "count"),
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean")
+).reset_index()
+
+st.dataframe(tabla_vendedores, use_container_width=True)
+
+fig_vendedores = px.bar(
+    tabla_vendedores,
+    x="Metodo_Captura",
+    y="Total_Monto",
+    color="Promedio_Avance",
+    title="Monto Total por Método de Captura",
+    labels={"Total_Monto": "Monto Total", "Metodo_Captura": "Método de Captura", "Promedio_Avance": "Avance Promedio"},
+    text="Total_Cotizaciones",
+    color_continuous_scale="Bluered"
+)
+fig_vendedores.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+fig_vendedores.update_layout(xaxis_title="Método de Captura", yaxis_title="Monto Total", xaxis_tickangle=-45)
+st.plotly_chart(fig_vendedores)
+
+# Análisis por Clasificación
+st.subheader("Desempeño por Clasificación de Clientes")
+
+tabla_clasificacion = cotizaciones.groupby("Estatus").agg(
+    Total_Cotizaciones=("Cliente", "count"),
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean")
+).reset_index()
+
+st.dataframe(tabla_clasificacion, use_container_width=True)
+
+fig_clasificacion = px.bar(
+    tabla_clasificacion,
+    x="Estatus",
+    y="Total_Monto",
+    color="Promedio_Avance",
+    title="Monto Total por Clasificación de Clientes",
+    labels={"Total_Monto": "Monto Total", "Estatus": "Clasificación", "Promedio_Avance": "Avance Promedio"},
+    text="Total_Cotizaciones",
+    color_continuous_scale="Viridis"
+)
+fig_clasificacion.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+fig_clasificacion.update_layout(xaxis_title="Clasificación", yaxis_title="Monto Total")
+st.plotly_chart(fig_clasificacion)
+
+# Exportar Datos Filtrados
+st.subheader("Exportar Reporte de Análisis")
+data_to_export = cotizaciones.copy()
+st.download_button(
+    label="Descargar Análisis",
+    data=data_to_export.to_csv(index=False).encode("utf-8"),
+    file_name="reporte_analisis.csv",
+    mime="text/csv"
+)
