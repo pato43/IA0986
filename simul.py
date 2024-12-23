@@ -1,410 +1,312 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
 # Configuración inicial de la página
 st.set_page_config(
     page_title="Dashboard de Cotizaciones",
-    page_icon="📊",
+    page_icon="📈",
     layout="wide"
 )
 
-# Estilo personalizado
+# Título del dashboard
+st.title("Dashboard de Automatización de Cotizaciones")
 st.markdown(
     """
-    <style>
-    .title {
-        text-align: center;
-        font-size: 48px;
-        color: #2c3e50;
-        margin-bottom: 10px;
-    }
-    .subtitle {
-        text-align: center;
-        font-size: 18px;
-        color: #7f8c8d;
-        margin-top: -10px;
-        margin-bottom: 40px;
-    }
-    .sidebar .sidebar-content {
-        background-color: #f4f4f9;
-        padding: 20px;
-    }
-    .stButton > button {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 8px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Título del dashboard con diseño mejorado
-st.markdown(
+    Este dashboard permite gestionar, analizar y pronosticar las cotizaciones de manera eficiente. A continuación, 
+    podrás visualizar datos clave, realizar ediciones y explorar tendencias de las cotizaciones.
     """
-    <h1 class="title">Dashboard de Cotizaciones</h1>
-    <p class="subtitle">Optimiza la gestión de tus cotizaciones con análisis interactivo y herramientas avanzadas</p>
-    """,
-    unsafe_allow_html=True
 )
 
-# Menú de navegación
-menu = st.sidebar.radio(
-    "Navegación",
-    ["Vista Previa", "Editar Datos", "Análisis de Estados y Ventas"],
-    index=0
-)
-
-# Ruta al archivo CSV
+# Lectura del archivo cleaned_coti.csv
 FILE_PATH = "cleaned_coti.csv"
 
 @st.cache_data
 def cargar_datos(file_path):
-    try:
-        datos = pd.read_csv(file_path)
-        if "Fecha" not in datos.columns:
-            datos["Fecha"] = pd.to_datetime("2023-01-01")  # Columna ficticia si falta
-        return datos
-    except Exception as e:
-        st.error(f"Error al cargar los datos: {e}")
-        return pd.DataFrame()
+    datos = pd.read_csv(file_path)
+    return datos
 
 cotizaciones = cargar_datos(FILE_PATH)
 
-if menu == "Vista Previa":
-    st.subheader("Vista Previa de Datos")
-    if not cotizaciones.empty:
-        st.write("Tabla Completa de Cotizaciones:")
-        st.dataframe(cotizaciones, use_container_width=True)
+# Validar y convertir columnas relevantes
+numericas = ["Monto", "Avance_Porcentaje"]
+for col in numericas:
+    cotizaciones[col] = pd.to_numeric(cotizaciones[col], errors="coerce")
 
-        st.write("Tabla Resumida con Campos Esenciales:")
-        columnas_esenciales = ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus"]
-        st.dataframe(cotizaciones[columnas_esenciales], use_container_width=True)
+# Mostrar los primeros registros para referencia
+st.subheader("Vista Previa de Datos")
+st.dataframe(cotizaciones.head(), use_container_width=True)
+
+# Sección para edición de datos relevantes
+st.subheader("Editar Datos Relevantes")
+if st.checkbox("Habilitar edición de datos"):
+    st.warning("Edite con cuidado, estos cambios afectan el archivo cargado.")
+    for columna in cotizaciones.columns:
+        if cotizaciones[columna].dtype == 'object':
+            nuevos_valores = st.text_area(f"Editar valores para {columna}", ", ".join(cotizaciones[columna].dropna().unique()))
+            if nuevos_valores:
+                nuevos_valores = nuevos_valores.split(", ")
+                cotizaciones[columna] = cotizaciones[columna].apply(lambda x: nuevos_valores[0] if x == nuevos_valores[1] else x)
+        elif cotizaciones[columna].dtype in ['int64', 'float64']:
+            min_val = st.number_input(f"Valor mínimo para {columna}", value=float(cotizaciones[columna].min()))
+            max_val = st.number_input(f"Valor máximo para {columna}", value=float(cotizaciones[columna].max()))
+            cotizaciones[columna] = cotizaciones[columna].clip(lower=min_val, upper=max_val)
+
+    st.success("Ediciones aplicadas correctamente.")
+
+# Determinación del estado del semáforo
+st.subheader("Estados de Cotizaciones")
+def asignar_estado(avance):
+    if avance == 100:
+        return "🟢 Aprobada"
+    elif avance >= 50:
+        return "🟡 Pendiente"
     else:
-        st.warning("No se encontraron datos en el archivo.")
+        return "🔴 Rechazada"
 
-if menu == "Editar Datos":
-    st.subheader("Editar Datos Importantes")
-    if not cotizaciones.empty:
-        indice_seleccionado = st.selectbox(
-            "Selecciona una fila para editar:",
-            cotizaciones.index
-        )
-        if indice_seleccionado is not None:
-            with st.form(f"form_editar_{indice_seleccionado}"):
-                nuevo_monto = st.number_input(
-                    "Monto",
-                    value=float(cotizaciones.at[indice_seleccionado, "Monto"])
-                )
-                nuevo_avance = st.slider(
-                    "Porcentaje de Avance",
-                    0,
-                    100,
-                    int(cotizaciones.at[indice_seleccionado, "Avance_Porcentaje"])
-                )
-                guardar = st.form_submit_button("Guardar Cambios")
-                if guardar:
-                    cotizaciones.at[indice_seleccionado, "Monto"] = nuevo_monto
-                    cotizaciones.at[indice_seleccionado, "Avance_Porcentaje"] = nuevo_avance
-                    st.success("Datos actualizados correctamente.")
-    else:
-        st.warning("No se encontraron datos para editar.")
+cotizaciones["Estado_Semaforo"] = cotizaciones["Avance_Porcentaje"].apply(asignar_estado)
 
-if menu == "Análisis de Estados y Ventas":
-    st.subheader("Análisis de Estados")
-    if not cotizaciones.empty:
-        def asignar_estado(avance):
-            if avance == 100:
-                return "🟢 Aprobada"
-            elif avance >= 50:
-                return "🟡 Pendiente"
-            else:
-                return "🔴 Rechazada"
+# Tabla resumen por estado
+st.write("Distribución de Estados de las Cotizaciones:")
+estados_resumen = cotizaciones["Estado_Semaforo"].value_counts().reset_index()
+estados_resumen.columns = ["Estado", "Cantidad"]
+col1, col2 = st.columns([2, 1])
+with col1:
+    st.dataframe(estados_resumen, use_container_width=True)
 
-        cotizaciones["Estado"] = cotizaciones["Avance_Porcentaje"].apply(asignar_estado)
+# Gráfico de barras para estados
+def graficar_estados(datos):
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.barplot(data=datos, x="Estado", y="Cantidad", palette="viridis", ax=ax)
+    ax.set_title("Distribución de Estados de Cotizaciones", fontsize=14)
+    ax.set_ylabel("Cantidad", fontsize=12)
+    ax.set_xlabel("Estado", fontsize=12)
+    st.pyplot(fig)
 
-        st.write("Distribución de Estados:")
-        estados_resumen = cotizaciones["Estado"].value_counts().reset_index()
-        estados_resumen.columns = ["Estado", "Cantidad"]
+with col2:
+    graficar_estados(estados_resumen)
 
-        fig = px.bar(
-            estados_resumen,
-            x="Estado",
-            y="Cantidad",
-            color="Estado",
-            color_discrete_map={"🟢 Aprobada": "green", "🟡 Pendiente": "yellow", "🔴 Rechazada": "red"},
-            title="Distribución de Estados de Cotizaciones"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.subheader("Pronóstico de Ventas Mensuales")
-
-        cotizaciones["Fecha"] = pd.to_datetime(cotizaciones["Fecha"], errors="coerce")
-        ventas_mensuales = cotizaciones.groupby(
-            pd.to_datetime(cotizaciones["Fecha"], errors="coerce").dt.to_period("M")
-        ).agg(Total_Monto=("Monto", "sum")).reset_index()
-        ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
-
-        # Limpiar datos de ventas mensuales
-        ventas_mensuales = ventas_mensuales.dropna(subset=["Total_Monto"])
-        try:
-            ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
-        except ValueError:
-            st.error("Error al convertir los montos a valores numéricos.")
-
-        ventas_mensuales["Mes"] = range(len(ventas_mensuales))
-        X = ventas_mensuales[["Mes"]]
-        y = ventas_mensuales["Total_Monto"]
-
-        if len(X) > 0 and len(y) > 0:
-            modelo = LinearRegression()
-            modelo.fit(X, y)
-
-            meses_futuros = 12
-            nuevos_meses = pd.DataFrame({"Mes": range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)})
-            predicciones = modelo.predict(nuevos_meses)
-
-            futuras_fechas = pd.date_range(
-                start=ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1),
-                periods=meses_futuros,
-                freq="M"
-            )
-
-            ventas_pronostico = pd.DataFrame({
-                "Fecha": futuras_fechas,
-                "Total_Monto": predicciones,
-                "Tipo": "Pronóstico"
-            })
-
-            ventas_historico = ventas_mensuales.copy()
-            ventas_historico["Tipo"] = "Histórico"
-
-            ventas_completo = pd.concat([ventas_historico, ventas_pronostico])
-
-            fig_pronostico = px.line(
-                ventas_completo,
-                x="Fecha",
-                y="Total_Monto",
-                color="Tipo",
-                title="Pronóstico de Ventas Mensuales",
-                labels={"Total_Monto": "Monto Total", "Fecha": "Fecha"},
-                color_discrete_map={"Histórico": "blue", "Pronóstico": "orange"}
-            )
-            fig_pronostico.update_traces(mode="lines+markers")
-            st.plotly_chart(fig_pronostico, use_container_width=True)
-        else:
-            st.warning("No hay datos suficientes para generar el pronóstico.")
-    else:
-        st.warning("No se encontraron datos para analizar.")
-# Parte 2: Análisis Avanzado y Visualización Interactiva
-
-# Análisis de Cotizaciones 2020-2021
+# Datos de cotizaciones 2020-2021
 st.subheader("Análisis de Cotizaciones 2020-2021")
-
 cotizaciones_fechas = cotizaciones.copy()
 cotizaciones_fechas["Año"] = pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.year
 
-# Filtrar datos para los años 2020 y 2021
 datos_2020_2021 = cotizaciones_fechas[cotizaciones_fechas["Año"].isin([2020, 2021])]
 cotizaciones_anuales = datos_2020_2021.groupby("Año").agg(
     Total_Cotizaciones=("Monto", "count"),
     Total_Monto=("Monto", "sum")
 ).reset_index()
 
-st.write("Resumen de Cotizaciones por Año:")
-st.dataframe(cotizaciones_anuales, use_container_width=True)
+col3, col4 = st.columns([2, 1])
+with col3:
+    st.write("Resumen de Cotizaciones por Año:")
+    st.dataframe(cotizaciones_anuales, use_container_width=True)
 
-# Gráfico: Cotizaciones por Año
-fig_anual = px.bar(
-    cotizaciones_anuales,
-    x="Año",
-    y="Total_Monto",
-    text="Total_Monto",
-    title="Monto Total de Cotizaciones por Año (2020-2021)",
-    labels={"Total_Monto": "Monto Total", "Año": "Año"},
-    color="Año",
-    color_discrete_sequence=px.colors.sequential.Viridis
-)
-fig_anual.update_traces(texttemplate='%{text:.2s}', textposition='outside')
-fig_anual.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
-st.plotly_chart(fig_anual, use_container_width=True)
+# Gráfico de barras para 2020-2021
+def graficar_cotizaciones_anuales(datos):
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.barplot(data=datos, x="Año", y="Total_Monto", palette="crest", ax=ax)
+    ax.set_title("Total de Monto por Año (2020-2021)", fontsize=14)
+    ax.set_ylabel("Monto Total", fontsize=12)
+    ax.set_xlabel("Año", fontsize=12)
+    st.pyplot(fig)
 
-# Pronóstico de Ventas Mensuales
+with col4:
+    graficar_cotizaciones_anuales(cotizaciones_anuales)
+
+# Pronóstico de ventas mensuales
 st.subheader("Pronóstico de Ventas Mensuales")
+mes_actual = cotizaciones_fechas[pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.month == 12]
+total_mes_actual = mes_actual["Monto"].sum()
+st.metric(label="Ventas Estimadas para el Mes Actual", value=f"${total_mes_actual:,.2f}")
+# Continuación del Dashboard: Parte 2
 
-ventas_mensuales = cotizaciones_fechas.groupby(
-    pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.to_period("M")
-).agg(Total_Monto=("Monto", "sum")).reset_index()
+# Pronóstico Anual de Ventas
+st.subheader("Pronóstico Anual de Ventas")
+
+# Preparar datos de series de tiempo
+ventas_mensuales = cotizaciones_fechas.groupby(pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.to_period("M")).agg(
+    Total_Monto=("Monto", "sum")
+).reset_index()
 ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
 
-# Limpiar datos de ventas mensuales
-ventas_mensuales = ventas_mensuales.dropna(subset=["Total_Monto"])
-try:
-    ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
-except ValueError:
-    st.error("Algunos valores no son numéricos en la columna 'Monto'. Por favor, revisa los datos.")
-
-# Modelo de pronóstico
-ventas_mensuales["Mes"] = range(len(ventas_mensuales))
+# Crear modelo de regresión lineal para predicciones
+modelo = LinearRegression()
+ventas_mensuales["Mes"] = np.arange(len(ventas_mensuales))
 X = ventas_mensuales[["Mes"]]
 y = ventas_mensuales["Total_Monto"]
 
-# Ajuste del modelo
-if len(X) > 0 and len(y) > 0:
-    modelo = LinearRegression()
+# Verificar datos antes de ajustar
+if not X.empty and not y.empty:
     modelo.fit(X, y)
 
-    # Predicciones futuras
+    # Predicción para los próximos 12 meses
     meses_futuros = 12
-    nuevos_meses = pd.DataFrame({"Mes": range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)})
+    nuevos_meses = np.arange(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros).reshape(-1, 1)
     predicciones = modelo.predict(nuevos_meses)
 
-    # Preparar datos para el gráfico
-    futuras_fechas = pd.date_range(
-        start=ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1),
-        periods=meses_futuros,
-        freq="M"
-    )
-
-    ventas_pronostico = pd.DataFrame({
+    # Combinar datos históricos y pronosticados
+    futuras_fechas = pd.date_range(ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1), periods=meses_futuros, freq="M")
+    datos_pronostico = pd.DataFrame({
         "Fecha": futuras_fechas,
         "Total_Monto": predicciones,
         "Tipo": "Pronóstico"
     })
 
-    ventas_historico = ventas_mensuales.copy()
-    ventas_historico["Tipo"] = "Histórico"
+    ventas_mensuales["Tipo"] = "Histórico"
+    datos_completos = pd.concat([ventas_mensuales, datos_pronostico], ignore_index=True)
 
-    ventas_completo = pd.concat([ventas_historico, ventas_pronostico])
+    # Gráfico de series de tiempo
+    st.markdown("### Gráfico de Series de Tiempo para Ventas")
+    def graficar_series(datos):
+        fig, ax = plt.subplots(figsize=(10, 5))
+        sns.lineplot(data=datos, x="Fecha", y="Total_Monto", hue="Tipo", palette="tab10", ax=ax)
+        ax.set_title("Pronóstico Anual de Ventas", fontsize=16)
+        ax.set_ylabel("Monto Total", fontsize=12)
+        ax.set_xlabel("Fecha", fontsize=12)
+        ax.legend(title="Tipo de Datos")
+        st.pyplot(fig)
 
-    # Gráfico: Pronóstico de Ventas Mensuales
-    fig_pronostico = px.line(
-        ventas_completo,
-        x="Fecha",
-        y="Total_Monto",
-        color="Tipo",
-        title="Pronóstico de Ventas Mensuales",
-        labels={"Total_Monto": "Monto Total", "Fecha": "Fecha"},
-        color_discrete_map={"Histórico": "blue", "Pronóstico": "orange"}
-    )
-    fig_pronostico.update_traces(mode="lines+markers")
-    st.plotly_chart(fig_pronostico, use_container_width=True)
+    graficar_series(datos_completos)
 else:
-    st.warning("No hay datos suficientes para realizar el pronóstico.")
+    st.warning("Los datos no son suficientes para generar un modelo de pronóstico.")
 
-# Resumen de Pronósticos
-st.subheader("Resumen Detallado de Pronósticos")
-col1, col2, col3 = st.columns(3)
+# Resumen de Pronóstico Anual
+st.subheader("Resumen de Pronóstico Anual")
+promedio_pronostico = predicciones.mean() if 'predicciones' in locals() else 0
+st.metric(label="Promedio Pronosticado Mensual", value=f"${promedio_pronostico:,.2f}")
 
-with col1:
-    total_historico = ventas_historico["Total_Monto"].sum()
-    st.metric("Ventas Históricas Totales", f"${total_historico:,.2f}")
-
-with col2:
-    total_pronostico = ventas_pronostico["Total_Monto"].sum()
-    st.metric("Ventas Pronosticadas Totales", f"${total_pronostico:,.2f}")
-
-with col3:
-    crecimiento_estimado = (total_pronostico / total_historico - 1) * 100 if total_historico > 0 else 0
-    st.metric("Crecimiento Estimado (%)", f"{crecimiento_estimado:.2f}%")
-# Parte 3: Filtros Dinámicos, Exportación y Métricas Finales
-
-# Filtros Dinámicos
-st.subheader("Filtros Dinámicos de Cotizaciones")
-st.write("Refina las cotizaciones según diferentes criterios para análisis específico.")
-
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    filtro_area = st.selectbox("Filtrar por Área", ["Todos"] + cotizaciones["Area"].unique().tolist())
-with col2:
-    filtro_cliente = st.text_input("Buscar por Cliente")
-with col3:
-    filtro_estado = st.selectbox("Filtrar por Estado", ["Todos", "🟢 Aprobada", "🟡 Pendiente", "🔴 Rechazada"])
-with col4:
-    filtro_monto = st.slider(
-        "Filtrar por Monto",
-        min_value=0,
-        max_value=int(cotizaciones["Monto"].max()),
-        value=(0, int(cotizaciones["Monto"].max()))
-    )
-
-# Aplicación de Filtros
-datos_filtrados = cotizaciones.copy()
-if filtro_area != "Todos":
-    datos_filtrados = datos_filtrados[datos_filtrados["Area"] == filtro_area]
-if filtro_cliente:
-    datos_filtrados = datos_filtrados[datos_filtrados["Cliente"].str.contains(filtro_cliente, case=False, na=False)]
-if filtro_estado != "Todos":
-    datos_filtrados = datos_filtrados[datos_filtrados["Estado"] == filtro_estado]
-datos_filtrados = datos_filtrados[
-    (datos_filtrados["Monto"] >= filtro_monto[0]) & (datos_filtrados["Monto"] <= filtro_monto[1])
-]
-
-st.write("Resultados Filtrados:")
-st.dataframe(datos_filtrados, use_container_width=True)
-
-# Exportación de Datos
-st.subheader("Exportar Datos Filtrados")
-if not datos_filtrados.empty:
-    csv_filtrado = datos_filtrados.to_csv(index=False).encode("utf-8")
+# Sección de Exportación
+st.subheader("Exportar Datos Procesados")
+if not cotizaciones.empty:
     st.download_button(
-        label="Descargar CSV Filtrado",
-        data=csv_filtrado,
-        file_name="cotizaciones_filtradas.csv",
+        label="Descargar Cotizaciones Actualizadas",
+        data=cotizaciones.to_csv(index=False).encode('utf-8'),
+        file_name="cotizaciones_actualizadas.csv",
         mime="text/csv"
     )
+
+# Tablas dinámicas para análisis
+st.subheader("Análisis Dinámico de Cotizaciones")
+# Agrupación por cliente
+st.markdown("#### Agrupación por Cliente")
+tabla_cliente = cotizaciones.groupby("Cliente").agg(
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean"),
+    Total_Cotizaciones=("Cliente", "count")
+).reset_index()
+st.dataframe(tabla_cliente, use_container_width=True)
+
+# Agrupación por estado
+st.markdown("#### Agrupación por Estado de Semáforo")
+tabla_estado = cotizaciones.groupby("Estado_Semaforo").agg(
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean"),
+    Total_Cotizaciones=("Estado_Semaforo", "count")
+).reset_index()
+st.dataframe(tabla_estado, use_container_width=True)
+
+# Final de la parte 2
+st.markdown("---")
+st.info("Esta sección concluye el análisis de pronósticos y agrupaciones dinámicas de cotizaciones.")
+# Continuación del Dashboard: Parte 3
+
+# Gráficos avanzados e interactividad adicional
+
+# Visualización de tendencias de cotización por área
+st.subheader("Tendencias de Cotización por Área")
+
+grafico_area = cotizaciones.groupby("Area").agg(
+    Total_Cotizaciones=("Monto", "count"),
+    Total_Monto=("Monto", "sum")
+).reset_index()
+
+def graficar_por_area(datos):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(data=datos, x="Area", y="Total_Monto", palette="coolwarm", ax=ax)
+    ax.set_title("Monto Total de Cotizaciones por Área", fontsize=16)
+    ax.set_ylabel("Monto Total", fontsize=12)
+    ax.set_xlabel("Área", fontsize=12)
+    plt.xticks(rotation=45, ha="right")
+    st.pyplot(fig)
+
+graficar_por_area(grafico_area)
+
+# Comparativa entre vendedores
+st.subheader("Comparativa de Vendedores")
+
+grafico_vendedores = cotizaciones.groupby("Vendedor").agg(
+    Total_Cotizaciones=("Monto", "count"),
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean")
+).reset_index()
+
+def graficar_por_vendedor(datos):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.barplot(data=datos, x="Vendedor", y="Total_Monto", palette="magma", ax=ax)
+    ax.set_title("Monto Total de Cotizaciones por Vendedor", fontsize=16)
+    ax.set_ylabel("Monto Total", fontsize=12)
+    ax.set_xlabel("Vendedor", fontsize=12)
+    plt.xticks(rotation=45, ha="right")
+    st.pyplot(fig)
+
+graficar_por_vendedor(grafico_vendedores)
+
+# Interacción con filtros dinámicos
+st.subheader("Explorar Cotizaciones con Filtros Dinámicos")
+
+# Filtro por cliente
+cliente_seleccionado = st.selectbox(
+    "Selecciona un cliente para filtrar:", options=["Todos"] + list(cotizaciones["Cliente"].unique())
+)
+
+# Filtro por estado de semáforo
+estado_seleccionado = st.selectbox(
+    "Selecciona un estado para filtrar:", options=["Todos"] + list(cotizaciones["Estado_Semaforo"].unique())
+)
+
+# Aplicar filtros
+filtros = cotizaciones.copy()
+if cliente_seleccionado != "Todos":
+    filtros = filtros[filtros["Cliente"] == cliente_seleccionado]
+if estado_seleccionado != "Todos":
+    filtros = filtros[filtros["Estado_Semaforo"] == estado_seleccionado]
+
+# Mostrar resultados filtrados
+st.write("Resultados Filtrados:")
+st.dataframe(filtros, use_container_width=True)
+
+# Gráfico dinámico basado en filtros
+if not filtros.empty:
+    st.subheader("Distribución de Montos Filtrados")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.histplot(filtros, x="Monto", bins=15, kde=True, color="blue", ax=ax)
+    ax.set_title("Distribución de Montos Filtrados", fontsize=16)
+    ax.set_xlabel("Monto", fontsize=12)
+    ax.set_ylabel("Frecuencia", fontsize=12)
+    st.pyplot(fig)
 else:
-    st.warning("No hay datos para exportar con los filtros actuales.")
+    st.warning("No hay datos que coincidan con los filtros seleccionados.")
 
-# Gráfico Interactivo: Distribución de Montos por Estado
-st.subheader("Distribución de Montos por Estado")
-if not datos_filtrados.empty:
-    distribucion_estado = datos_filtrados.groupby("Estado").agg(
-        Total_Monto=("Monto", "sum")
-    ).reset_index()
+# Evaluación de desempeño por clasificación
+st.subheader("Desempeño por Clasificación de Clientes")
 
-    fig_estado = px.bar(
-        distribucion_estado,
-        x="Estado",
-        y="Total_Monto",
-        color="Estado",
-        title="Distribución de Montos por Estado",
-        labels={"Total_Monto": "Monto Total", "Estado": "Estado"},
-        color_discrete_map={"🟢 Aprobada": "green", "🟡 Pendiente": "yellow", "🔴 Rechazada": "red"}
-    )
-    st.plotly_chart(fig_estado, use_container_width=True)
-else:
-    st.warning("No hay datos suficientes para graficar.")
+grafico_clasificacion = cotizaciones.groupby("Clasificacion").agg(
+    Total_Cotizaciones=("Monto", "count"),
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean")
+).reset_index()
 
-# Métricas Finales
-st.subheader("Métricas Finales")
-col1, col2, col3 = st.columns(3)
+fig, ax = plt.subplots(figsize=(10, 6))
+sns.barplot(data=grafico_clasificacion, x="Clasificacion", y="Total_Monto", palette="cubehelix", ax=ax)
+ax.set_title("Monto Total por Clasificación", fontsize=16)
+ax.set_xlabel("Clasificación", fontsize=12)
+ax.set_ylabel("Monto Total", fontsize=12)
+st.pyplot(fig)
 
-with col1:
-    total_filtrado = len(datos_filtrados)
-    st.metric("Total de Cotizaciones Filtradas", total_filtrado)
-
-with col2:
-    monto_total_filtrado = datos_filtrados["Monto"].sum()
-    st.metric("Monto Total Filtrado", f"${monto_total_filtrado:,.2f}")
-
-with col3:
-    avance_promedio_filtrado = datos_filtrados["Avance_Porcentaje"].mean()
-    st.metric(
-        "Avance Promedio (%)",
-        f"{avance_promedio_filtrado:.2f}%" if not pd.isnull(avance_promedio_filtrado) else "N/A"
-    )
-
-# Simulación de Reporte PDF
-st.subheader("Generación de Reporte PDF")
-st.write("Simula la generación de un reporte en formato PDF basado en los datos filtrados.")
-if st.button("Generar PDF (Simulado)"):
-    st.success("Reporte PDF generado exitosamente (simulado).")
-
-st.write("---")
-st.write("Gracias por utilizar el Dashboard de Cotizaciones. Continúa optimizando tus procesos y toma mejores decisiones.")
+# Sección final
+st.markdown("---")
+st.info("Has explorado todas las secciones avanzadas del dashboard. Ahora puedes tomar decisiones más informadas sobre las cotizaciones.")
