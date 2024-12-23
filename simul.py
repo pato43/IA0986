@@ -1,186 +1,193 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import numpy as np
+from datetime import datetime
 
-# Carga de datos desde un archivo alojado en GitHub
+# Configuración inicial del dashboard
+st.set_page_config(
+    page_title="Sistema de Gestión de Cotizaciones",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Path fijo al archivo CSV
+RUTA_CSV = "ruta/a/tu/archivo/coti.csv"
+
+# Función para cargar el archivo CSV
 @st.cache_data
-def load_data():
-    url = "https://github.com/pato43/IA0986/blob/main/tablas%20ordenadas%20.xlsx"
-    data = pd.read_excel(url)
+def cargar_datos(ruta_archivo):
+    """
+    Carga un archivo CSV que contiene las cotizaciones previas.
+    Args:
+        ruta_archivo (str): Ruta del archivo CSV.
+    Returns:
+        pd.DataFrame: DataFrame con las cotizaciones.
+    """
+    try:
+        data = pd.read_csv(ruta_archivo)
+        return data
+    except Exception as e:
+        st.error(f"Error al cargar el archivo: {e}")
+        return None
+
+# Función para registrar una nueva cotización
+def registrar_cotizacion(data, nueva_cotizacion):
+    """
+    Agrega una nueva cotización al DataFrame existente.
+    Args:
+        data (pd.DataFrame): DataFrame con las cotizaciones actuales.
+        nueva_cotizacion (dict): Diccionario con los datos de la nueva cotización.
+    Returns:
+        pd.DataFrame: DataFrame actualizado con la nueva cotización.
+    """
+    return data.append(nueva_cotizacion, ignore_index=True)
+
+# Cargar datos iniciales desde el backend
+cotizaciones = cargar_datos(RUTA_CSV)
+
+if cotizaciones is not None:
+    # Título del dashboard
+    st.title("Sistema de Gestión y Automatización de Cotizaciones")
+
+    # Vista general del archivo cargado
+    st.subheader("Cotizaciones Actuales")
+    st.dataframe(cotizaciones, use_container_width=True)
+
+    # Registro de nueva cotización
+    st.subheader("Registrar Nueva Cotización")
+    with st.form(key="form_cotizacion"):
+        col1, col2 = st.columns(2)
+        with col1:
+            area = st.selectbox("Área", cotizaciones["Area"].unique(), help="Selecciona el área de la cotización.")
+            cliente = st.text_input("Cliente", help="Nombre del cliente.")
+            concepto = st.text_input("Concepto", help="Descripción del producto o servicio.")
+            monto = st.number_input("Monto", min_value=0.0, help="Monto total de la cotización.")
+        with col2:
+            clasificacion = st.selectbox("Clasificación", ["A", "AA", "AAA"], help="Clasificación del cliente.")
+            vendedor = st.text_input("Vendedor", help="Nombre del vendedor a cargo.")
+            fecha_inicio = st.date_input("Fecha de inicio", datetime.today(), help="Fecha de inicio del proyecto.")
+            duracion = st.number_input("Duración (días)", min_value=1, help="Duración del proyecto en días.")
+
+        # Botón para guardar la nueva cotización
+        submit_button = st.form_submit_button(label="Guardar Cotización")
+    
+    # Si se presiona el botón de guardar
+    if submit_button:
+        nueva_cotizacion = {
+            "Area": area,
+            "Cliente": cliente,
+            "Concepto": concepto,
+            "Monto": monto,
+            "Clasificacion": clasificacion,
+            "Vendedor": vendedor,
+            "Fecha_Inicio": fecha_inicio.strftime("%Y-%m-%d"),
+            "Duracion_Dias": duracion,
+            "Estatus": "Pendiente",
+            "Avance_Porcentaje": 0
+        }
+        cotizaciones = registrar_cotizacion(cotizaciones, nueva_cotizacion)
+        st.success("¡Nueva cotización registrada exitosamente!")
+        
+        # Mostrar tabla actualizada
+        st.subheader("Cotizaciones Actualizadas")
+        st.dataframe(cotizaciones, use_container_width=True)
+
+        # Botón para descargar la tabla actualizada
+        st.download_button(
+            label="Descargar Cotizaciones Actualizadas",
+            data=cotizaciones.to_csv(index=False).encode('utf-8'),
+            file_name="cotizaciones_actualizadas.csv",
+            mime="text/csv"
+        )
+else:
+    st.error("No se pudo cargar el archivo de cotizaciones. Verifica el path del archivo CSV.")
+# Función para actualizar el estado y avance de una cotización
+def actualizar_cotizacion(data, indice, avance, estatus):
+    """
+    Actualiza el avance y el estado de una cotización específica en el DataFrame.
+    Args:
+        data (pd.DataFrame): DataFrame con las cotizaciones actuales.
+        indice (int): Índice de la cotización a actualizar.
+        avance (float): Porcentaje de avance.
+        estatus (str): Nuevo estatus de la cotización.
+    Returns:
+        pd.DataFrame: DataFrame actualizado.
+    """
+    data.at[indice, "Avance_Porcentaje"] = avance
+    data.at[indice, "Estatus"] = estatus
     return data
 
-data = load_data()
+# Mostrar filtros en la barra lateral
+st.sidebar.header("Filtros de Cotizaciones")
+area_seleccionada = st.sidebar.multiselect("Filtrar por Área", cotizaciones["Area"].unique())
+cliente_seleccionado = st.sidebar.text_input("Buscar por Cliente")
+vendedor_seleccionado = st.sidebar.text_input("Buscar por Vendedor")
+estatus_seleccionado = st.sidebar.multiselect("Filtrar por Estatus", cotizaciones["Estatus"].unique())
 
-# Layout general del dashboard
-st.set_page_config(page_title="Dashboard de Cotizaciones", layout="wide")
-st.title("Dashboard de Cotizaciones y Pronósticos")
+# Aplicar filtros al DataFrame
+cotizaciones_filtradas = cotizaciones.copy()
 
-# Sidebar
-st.sidebar.header("Opciones de Filtrado")
+if area_seleccionada:
+    cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas["Area"].isin(area_seleccionada)]
+if cliente_seleccionado:
+    cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas["Cliente"].str.contains(cliente_seleccionado, case=False, na=False)]
+if vendedor_seleccionado:
+    cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas["Vendedor"].str.contains(vendedor_seleccionado, case=False, na=False)]
+if estatus_seleccionado:
+    cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas["Estatus"].isin(estatus_seleccionado)]
 
-# Filtrado de datos
-clientes = st.sidebar.multiselect(
-    "Selecciona Cliente(s)", options=data["CLIENTE"].unique(), default=data["CLIENTE"].unique()
-)
-clasificaciones = st.sidebar.multiselect(
-    "Selecciona Clasificación(es)", options=data["CLASIFICACION"].dropna().unique(), default=data["CLASIFICACION"].unique()
-)
+# Mostrar las cotizaciones filtradas
+st.subheader("Cotizaciones Filtradas")
+st.dataframe(cotizaciones_filtradas, use_container_width=True)
 
-fecha_inicio = st.sidebar.date_input(
-    "Fecha de inicio mínima", value=pd.to_datetime(data["FECHA INICIO"].min())
-)
-
-fecha_fin = st.sidebar.date_input(
-    "Fecha de inicio máxima", value=pd.to_datetime(data["FECHA INICIO"].max())
-)
-
-filtered_data = data[
-    (data["CLIENTE"].isin(clientes)) &
-    (data["CLASIFICACION"].isin(clasificaciones)) &
-    (pd.to_datetime(data["FECHA INICIO"]) >= pd.to_datetime(fecha_inicio)) &
-    (pd.to_datetime(data["FECHA INICIO"]) <= pd.to_datetime(fecha_fin))
-]
-
-# Sección 1: Resumen general
-st.markdown("## Resumen General")
-
+# Resumen general de cotizaciones
+st.subheader("Resumen General de Cotizaciones")
 col1, col2, col3 = st.columns(3)
-col1.metric("Monto Total Cotizado", f"${filtered_data['MONTO'].sum():,.2f}")
-col2.metric("Proyectos Totales", len(filtered_data))
-col3.metric("Duración Promedio (días)", f"{filtered_data['DIAS'].mean():.1f}")
 
-# Sección 2: Pronóstico Mensual
-st.markdown("## Pronóstico Mensual")
+with col1:
+    total_cotizaciones = len(cotizaciones_filtradas)
+    st.metric("Total de Cotizaciones", total_cotizaciones)
 
-pronostico_mensual = (
-    filtered_data.groupby(filtered_data["FECHA INICIO"].dt.to_period("M")).sum()["MONTO"].reset_index()
-)
-pronostico_mensual["FECHA INICIO"] = pronostico_mensual["FECHA INICIO"].dt.to_timestamp()
+with col2:
+    monto_total = cotizaciones_filtradas["Monto"].sum()
+    st.metric("Monto Total ($)", f"${monto_total:,.2f}")
 
-fig_pronostico_mensual = px.line(
-    pronostico_mensual,
-    x="FECHA INICIO",
-    y="MONTO",
-    title="Pronóstico Mensual con Suavización Exponencial",
-    labels={"MONTO": "Monto (MXN)", "FECHA INICIO": "Fecha"},
-    markers=True
-)
+with col3:
+    avance_promedio = cotizaciones_filtradas["Avance_Porcentaje"].mean()
+    st.metric("Avance Promedio (%)", f"{avance_promedio:.2f}%" if not pd.isnull(avance_promedio) else "N/A")
 
-st.plotly_chart(fig_pronostico_mensual, use_container_width=True)
-
-# Sección 3: Análisis por Clasificación
-st.markdown("## Análisis por Clasificación")
-
-clasificacion_data = (
-    filtered_data.groupby("CLASIFICACION")["MONTO"].sum().reset_index()
-    .sort_values(by="MONTO", ascending=False)
-)
-
-fig_clasificacion = px.bar(
-    clasificacion_data,
-    x="CLASIFICACION",
-    y="MONTO",
-    title="Montos Totales por Clasificación",
-    labels={"MONTO": "Monto (MXN)", "CLASIFICACION": "Clasificación"},
-    color="CLASIFICACION",
-    text_auto=True
-)
-
-st.plotly_chart(fig_clasificacion, use_container_width=True)
-
-# Sección 4: Control de colores para estados
-st.markdown("## Control de Estados por Progreso")
-
-estado_colores = filtered_data.copy()
-
-estado_colores["Estado"] = np.where(
-    estado_colores["ESTATUS"] == "Completado", "Verde", np.where(
-        estado_colores["ESTATUS"] == "En Proceso", "Amarillo", "Rojo"
+# Actualización de cotizaciones existentes
+st.subheader("Actualizar Cotización")
+with st.form(key="form_actualizar_cotizacion"):
+    # Seleccionar cotización a actualizar
+    indice_seleccionado = st.selectbox(
+        "Selecciona una cotización para actualizar",
+        cotizaciones_filtradas.index,
+        format_func=lambda x: f"{cotizaciones_filtradas.at[x, 'Cliente']} - {cotizaciones_filtradas.at[x, 'Concepto']}"
     )
-)
 
-fig_estado_colores = px.histogram(
-    estado_colores,
-    x="Estado",
-    title="Distribución de Estados por Color",
-    color="Estado",
-    color_discrete_map={"Verde": "green", "Amarillo": "yellow", "Rojo": "red"}
-)
+    # Campos para actualizar
+    nuevo_avance = st.slider("Porcentaje de Avance", 0, 100, int(cotizaciones_filtradas.at[indice_seleccionado, "Avance_Porcentaje"]))
+    nuevo_estatus = st.selectbox(
+        "Nuevo Estatus",
+        ["Pendiente", "En Progreso", "Completado"],
+        index=["Pendiente", "En Progreso", "Completado"].index(cotizaciones_filtradas.at[indice_seleccionado, "Estatus"])
+    )
 
-st.plotly_chart(fig_estado_colores, use_container_width=True)
-# Sección 5: Pronóstico Anual
-st.markdown("## Pronóstico Anual con Suavización Exponencial")
+    # Botón para guardar cambios
+    submit_actualizar = st.form_submit_button(label="Actualizar Cotización")
 
-def suavizacion_exponencial(data, alpha):
-    pronostico = [data[0]]
-    for n in range(1, len(data)):
-        pronostico.append(alpha * data[n] + (1 - alpha) * pronostico[n-1])
-    return pronostico
+if submit_actualizar:
+    cotizaciones = actualizar_cotizacion(cotizaciones, indice_seleccionado, nuevo_avance, nuevo_estatus)
+    st.success("¡Cotización actualizada exitosamente!")
 
-ventas_anuales = (
-    filtered_data.groupby(filtered_data["FECHA INICIO"].dt.year).sum()["MONTO"].reset_index()
-)
-ventas_anuales.rename(columns={"FECHA INICIO": "AÑO", "MONTO": "VENTAS"}, inplace=True)
+    # Mostrar tabla actualizada
+    st.subheader("Cotizaciones Actualizadas")
+    st.dataframe(cotizaciones, use_container_width=True)
 
-alpha = st.sidebar.slider("Nivel de Suavización (α)", min_value=0.01, max_value=1.0, value=0.5, step=0.01)
-ventas_anuales["PRONOSTICO"] = suavizacion_exponencial(ventas_anuales["VENTAS"].tolist(), alpha)
-
-fig_pronostico_anual = px.line(
-    ventas_anuales,
-    x="AÑO",
-    y=["VENTAS", "PRONOSTICO"],
-    title="Pronóstico Anual con Suavización Exponencial",
-    labels={"value": "Monto (MXN)", "variable": "Serie"},
-    markers=True
-)
-
-st.plotly_chart(fig_pronostico_anual, use_container_width=True)
-
-# Sección 6: Distribución por Vendedor
-st.markdown("## Análisis por Vendedor")
-
-vendedor_data = (
-    filtered_data.groupby("VENDEDOR")["MONTO"].sum().reset_index()
-    .sort_values(by="MONTO", ascending=False)
-)
-
-fig_vendedor = px.bar(
-    vendedor_data,
-    x="VENDEDOR",
-    y="MONTO",
-    title="Montos Totales por Vendedor",
-    labels={"MONTO": "Monto (MXN)", "VENDEDOR": "Vendedor"},
-    color="MONTO",
-    text_auto=True
-)
-
-st.plotly_chart(fig_vendedor, use_container_width=True)
-
-# Sección 7: Comentarios y Observaciones
-st.markdown("## Comentarios y Observaciones")
-
-comentarios = filtered_data[["CLIENTE", "CONCEPTO", "ESTATUS", "COMENTARIOS"]].copy()
-comentarios = comentarios.dropna(subset=["COMENTARIOS"])
-
-st.dataframe(comentarios, use_container_width=True)
-
-# Exportación de Datos Filtrados
-st.markdown("## Exportar Datos Filtrados")
-
-def convertir_csv(df):
-    return df.to_csv(index=False).encode('utf-8')
-
-data_csv = convertir_csv(filtered_data)
-st.download_button(
-    label="Descargar Datos Filtrados",
-    data=data_csv,
-    file_name="datos_filtrados.csv",
-    mime="text/csv"
-)
-
-# Pie de Página
-st.markdown("---")
-st.markdown(
-    "**Desarrollado por [Tu Nombre o Empresa](https://github.com/usuario/repositorio)** | © 2024"
-)
+    # Botón para descargar la tabla actualizada
+    st.download_button(
+        label="Descargar Cotizaciones Actualizadas",
+        data=cotizaciones.to_csv(index=False).encode('utf-8'),
+        file_name="cotizaciones_actualizadas.csv",
+        mime="text/csv"
+    )
