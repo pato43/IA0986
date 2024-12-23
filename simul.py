@@ -14,7 +14,8 @@ st.set_page_config(
 st.title("Dashboard de Automatización de Cotizaciones")
 st.markdown(
     """
-    Este dashboard permite gestionar, analizar y pronosticar las cotizaciones de manera eficiente. Puedes editar datos esenciales, visualizar tendencias y realizar análisis profundos.
+    Este dashboard permite gestionar, analizar y pronosticar las cotizaciones de manera eficiente. 
+    Organiza la información en tablas útiles, permite editar datos esenciales y visualizar gráficos interactivos. 
     """
 )
 
@@ -28,49 +29,28 @@ def cargar_datos(file_path):
 
 cotizaciones = cargar_datos(FILE_PATH)
 
-# Clonar DataFrame para ediciones
-cotizaciones_editables = cotizaciones.copy()
+# Validar las columnas y asegurarse de que los datos sean del tipo correcto
+columnas_necesarias = ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus", "Fecha", "Area"]
+datos_validados = cotizaciones[columnas_necesarias].copy()
 
-# Validar y convertir columnas relevantes
-numericas = ["Monto", "Avance_Porcentaje"]
-for col in numericas:
-    cotizaciones_editables[col] = pd.to_numeric(cotizaciones_editables[col], errors="coerce")
+def limpiar_y_convertir(df, columna, tipo):
+    if tipo == "numerico":
+        df[columna] = pd.to_numeric(df[columna], errors="coerce").fillna(0)
+    elif tipo == "fecha":
+        df[columna] = pd.to_datetime(df[columna], errors="coerce")
+    elif tipo == "texto":
+        df[columna] = df[columna].fillna("Desconocido")
 
-# Layout inicial
-st.subheader("Vista General de Datos")
-col1, col2 = st.columns([3, 1])
-with col1:
-    st.dataframe(cotizaciones_editables.head(), use_container_width=True)
-with col2:
-    st.metric("Total de Cotizaciones", len(cotizaciones_editables))
+# Limpiar y convertir datos necesarios
+limpiar_y_convertir(datos_validados, "Monto", "numerico")
+limpiar_y_convertir(datos_validados, "Avance_Porcentaje", "numerico")
+limpiar_y_convertir(datos_validados, "Fecha", "fecha")
+limpiar_y_convertir(datos_validados, "Cliente", "texto")
+limpiar_y_convertir(datos_validados, "Area", "texto")
+limpiar_y_convertir(datos_validados, "Estatus", "texto")
 
-# Edición de datos esenciales
-st.subheader("Editar Datos Esenciales")
-columnas_editables = st.multiselect(
-    "Selecciona las columnas a editar:",
-    options=cotizaciones_editables.columns,
-    default=["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus"]
-)
-
-if columnas_editables:
-    st.write("Edita los datos seleccionados directamente:")
-    for columna in columnas_editables:
-        st.markdown(f"### Editar columna: {columna}")
-        if cotizaciones_editables[columna].dtype == "object":
-            unique_values = cotizaciones_editables[columna].dropna().unique()
-            nuevo_valor = st.text_input(f"Nuevo valor para {columna}")
-            if st.button(f"Aplicar a {columna}"):
-                cotizaciones_editables[columna] = cotizaciones_editables[columna].replace(unique_values, nuevo_valor)
-                st.success(f"Valores en la columna {columna} actualizados.")
-        elif cotizaciones_editables[columna].dtype in ["int64", "float64"]:
-            min_val = st.number_input(f"Valor mínimo para {columna}", value=float(cotizaciones_editables[columna].min()))
-            max_val = st.number_input(f"Valor máximo para {columna}", value=float(cotizaciones_editables[columna].max()))
-            if st.button(f"Aplicar rango a {columna}"):
-                cotizaciones_editables[columna] = cotizaciones_editables[columna].clip(lower=min_val, upper=max_val)
-                st.success(f"Valores en la columna {columna} ajustados al rango especificado.")
-
-# Determinación del estado del semáforo
-st.subheader("Estados de Cotizaciones")
+# Semáforo en la tabla
+st.subheader("Estado de Cotizaciones (Semáforo)")
 def asignar_estado(avance):
     if avance == 100:
         return "🟢 Aprobada"
@@ -79,192 +59,184 @@ def asignar_estado(avance):
     else:
         return "🔴 Rechazada"
 
-cotizaciones_editables["Estado_Semaforo"] = cotizaciones_editables["Avance_Porcentaje"].apply(asignar_estado)
+datos_validados["Semaforo"] = datos_validados["Avance_Porcentaje"].apply(asignar_estado)
 
-# Tabla resumen por estado
-st.write("Distribución de Estados de las Cotizaciones:")
-estados_resumen = cotizaciones_editables["Estado_Semaforo"].value_counts().reset_index()
-estados_resumen.columns = ["Estado", "Cantidad"]
-col3, col4 = st.columns([2, 1])
-with col3:
-    st.dataframe(estados_resumen, use_container_width=True)
-with col4:
-    fig = px.bar(
-        estados_resumen,
-        x="Estado",
-        y="Cantidad",
-        title="Distribución de Estados de Cotizaciones",
-        color="Estado",
-        text="Cantidad",
-        color_discrete_map={"🟢 Aprobada": "green", "🟡 Pendiente": "yellow", "🔴 Rechazada": "red"}
-    )
-    fig.update_traces(textposition="outside")
-    st.plotly_chart(fig)
+# Tablas Divididas
+st.subheader("Tablas Esenciales")
 
-# Datos de cotizaciones 2020-2021
-st.subheader("Análisis de Cotizaciones 2020-2021")
-cotizaciones_editables["Año"] = pd.to_datetime(cotizaciones_editables["Fecha"], errors="coerce").dt.year
-
-datos_2020_2021 = cotizaciones_editables[cotizaciones_editables["Año"].isin([2020, 2021])]
-cotizaciones_anuales = datos_2020_2021.groupby("Año").agg(
-    Total_Cotizaciones=("Monto", "count"),
-    Total_Monto=("Monto", "sum")
-).reset_index()
-
-col5, col6 = st.columns([2, 1])
-with col5:
-    st.write("Resumen de Cotizaciones por Año:")
-    st.dataframe(cotizaciones_anuales, use_container_width=True)
-
-with col6:
-    fig_anual = px.bar(
-        cotizaciones_anuales,
-        x="Año",
-        y="Total_Monto",
-        title="Monto Total por Año (2020-2021)",
-        text="Total_Monto",
-        color="Año",
-        color_continuous_scale="Blues"
-    )
-    fig_anual.update_traces(texttemplate="%{text:.2s}", textposition="outside")
-    fig_anual.update_layout(showlegend=False)
-    st.plotly_chart(fig_anual)
-
-# Pronóstico de ventas mensuales
-st.subheader("Pronóstico de Ventas Mensuales")
-mes_actual = cotizaciones_editables[pd.to_datetime(cotizaciones_editables["Fecha"], errors="coerce").dt.month == 12]
-total_mes_actual = mes_actual["Monto"].sum()
-st.metric(label="Ventas Estimadas para el Mes Actual", value=f"${total_mes_actual:,.2f}")
-# Continuación del Dashboard: Parte 2
-
-# Pronóstico Anual de Ventas
-st.subheader("Pronóstico Anual de Ventas")
-
-# Preparar datos de series de tiempo
-ventas_mensuales = cotizaciones_editables.groupby(pd.to_datetime(cotizaciones_editables["Fecha"], errors="coerce").dt.to_period("M")).agg(
-    Total_Monto=("Monto", "sum")
-).reset_index()
-ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
-
-# Crear modelo de regresión lineal para predicciones
-from sklearn.linear_model import LinearRegression
-modelo = LinearRegression()
-ventas_mensuales["Mes"] = np.arange(len(ventas_mensuales))
-X = ventas_mensuales[["Mes"]]
-y = ventas_mensuales["Total_Monto"]
-
-# Verificar datos antes de ajustar
-if not X.empty and not y.empty:
-    modelo.fit(X, y)
-
-    # Predicción para los próximos 12 meses
-    meses_futuros = 12
-    nuevos_meses = np.arange(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros).reshape(-1, 1)
-    predicciones = modelo.predict(nuevos_meses)
-
-    # Combinar datos históricos y pronosticados
-    futuras_fechas = pd.date_range(ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1), periods=meses_futuros, freq="M")
-    datos_pronostico = pd.DataFrame({
-        "Fecha": futuras_fechas,
-        "Total_Monto": predicciones,
-        "Tipo": "Pronóstico"
-    })
-
-    ventas_mensuales["Tipo"] = "Histórico"
-    datos_completos = pd.concat([ventas_mensuales, datos_pronostico], ignore_index=True)
-
-    # Gráfico de series de tiempo
-    st.markdown("### Gráfico de Series de Tiempo para Ventas")
-    fig = px.line(
-        datos_completos,
-        x="Fecha",
-        y="Total_Monto",
-        color="Tipo",
-        title="Pronóstico Anual de Ventas",
-        labels={"Total_Monto": "Monto Total", "Fecha": "Mes"}
-    )
-    st.plotly_chart(fig)
-else:
-    st.warning("Los datos no son suficientes para generar un modelo de pronóstico.")
-
-# Resumen de Pronóstico Anual
-st.subheader("Resumen de Pronóstico Anual")
-promedio_pronostico = predicciones.mean() if 'predicciones' in locals() else 0
-st.metric(label="Promedio Pronosticado Mensual", value=f"${promedio_pronostico:,.2f}")
-
-# Sección de Exportación
-st.subheader("Exportar Datos Procesados")
-if not cotizaciones_editables.empty:
-    st.download_button(
-        label="Descargar Cotizaciones Actualizadas",
-        data=cotizaciones_editables.to_csv(index=False).encode('utf-8'),
-        file_name="cotizaciones_actualizadas.csv",
-        mime="text/csv"
-    )
-
-# Tablas dinámicas para análisis
-st.subheader("Análisis Dinámico de Cotizaciones")
-# Agrupación por cliente
-st.markdown("#### Agrupación por Cliente")
-tabla_cliente = cotizaciones_editables.groupby("Cliente").agg(
+# Tabla 1: Resumen por cliente
+st.markdown("### Resumen por Cliente")
+tabla_cliente = datos_validados.groupby("Cliente").agg(
     Total_Monto=("Monto", "sum"),
     Promedio_Avance=("Avance_Porcentaje", "mean"),
     Total_Cotizaciones=("Cliente", "count")
 ).reset_index()
 st.dataframe(tabla_cliente, use_container_width=True)
 
-# Agrupación por estado
-st.markdown("#### Agrupación por Estado de Semáforo")
-tabla_estado = cotizaciones_editables.groupby("Estado_Semaforo").agg(
+# Tabla 2: Resumen por área
+st.markdown("### Resumen por Área")
+tabla_area = datos_validados.groupby("Area").agg(
     Total_Monto=("Monto", "sum"),
     Promedio_Avance=("Avance_Porcentaje", "mean"),
-    Total_Cotizaciones=("Estado_Semaforo", "count")
+    Total_Cotizaciones=("Area", "count")
 ).reset_index()
-st.dataframe(tabla_estado, use_container_width=True)
+st.dataframe(tabla_area, use_container_width=True)
 
-# Final de la parte 2
+# Tabla 3: Resumen por estatus
+st.markdown("### Resumen por Estatus")
+tabla_estatus = datos_validados.groupby("Estatus").agg(
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean"),
+    Total_Cotizaciones=("Estatus", "count")
+).reset_index()
+st.dataframe(tabla_estatus, use_container_width=True)
+
+# Edición de Datos Esenciales
+st.subheader("Editar Datos Esenciales")
+columna_editar = st.selectbox("Selecciona una columna para editar:", ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus", "Area"])
+
+if columna_editar in ["Monto", "Avance_Porcentaje"]:
+    nuevo_valor = st.number_input(f"Nuevo valor para la columna {columna_editar}", min_value=0.0)
+    if st.button("Actualizar valores"):
+        datos_validados[columna_editar] = nuevo_valor
+        st.success(f"Columna {columna_editar} actualizada correctamente.")
+else:
+    valores_unicos = datos_validados[columna_editar].unique()
+    nuevo_valor = st.text_input(f"Nuevo valor para la columna {columna_editar}")
+    valor_a_reemplazar = st.selectbox(f"Selecciona un valor a reemplazar en {columna_editar}", valores_unicos)
+    if st.button("Actualizar valores"):
+        datos_validados[columna_editar] = datos_validados[columna_editar].replace(valor_a_reemplazar, nuevo_valor)
+        st.success(f"Columna {columna_editar} actualizada correctamente.")
+
+# Layout Mejorado con Tabs
 st.markdown("---")
-st.info("Esta sección concluye el análisis de pronósticos y agrupaciones dinámicas de cotizaciones.")
-# Continuación del Dashboard: Parte 3
+st.markdown("## Navegación de Secciones")
+menu_tabs = st.tabs(["Inicio", "Tablas Resumidas", "Edición de Datos"])
 
-# Comparativa de Tendencias por Área
-st.subheader("Tendencias de Cotización por Área")
+with menu_tabs[0]:
+    st.write("Bienvenido al Dashboard de Cotizaciones. Utiliza las pestañas para navegar entre las secciones.")
 
-# Agrupar datos por área
-grafico_area = cotizaciones_editables.groupby("Area").agg(
-    Total_Cotizaciones=("Monto", "count"),
+with menu_tabs[1]:
+    st.subheader("Tablas Resumidas")
+    st.markdown("Consulta los resúmenes organizados por cliente, área y estatus.")
+    st.dataframe(tabla_cliente, use_container_width=True)
+    st.dataframe(tabla_area, use_container_width=True)
+    st.dataframe(tabla_estatus, use_container_width=True)
+
+with menu_tabs[2]:
+    st.subheader("Edición de Datos Esenciales")
+    st.write("Utiliza las herramientas interactivas para editar los datos más relevantes.")
+# Continuación del Dashboard: Parte 2
+
+# Gráficos de Pronóstico y Tendencias
+st.subheader("Pronóstico y Análisis de Tendencias")
+
+# Datos para series de tiempo
+ventas_mensuales = datos_validados.groupby(pd.to_datetime(datos_validados["Fecha"], errors="coerce").dt.to_period("M")).agg(
+    Total_Monto=("Monto", "sum")
+).reset_index()
+ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
+
+# Validar datos antes de realizar gráficos
+if ventas_mensuales.empty:
+    st.warning("No hay datos suficientes para generar gráficos de pronóstico y tendencias.")
+else:
+    # Modelo de predicción simple
+    from sklearn.linear_model import LinearRegression
+    modelo = LinearRegression()
+    ventas_mensuales["Mes"] = range(len(ventas_mensuales))
+    X = ventas_mensuales[["Mes"]]
+    y = ventas_mensuales["Total_Monto"]
+
+    if len(X) > 1:  # Evitar errores si solo hay un punto de datos
+        modelo.fit(X, y)
+
+        # Predicción para los próximos 12 meses
+        meses_futuros = 12
+        nuevos_meses = range(len(ventas_mensuales), len(ventas_mensuales) + meses_futuros)
+        predicciones = modelo.predict([[m] for m in nuevos_meses])
+
+        # Datos combinados (históricos + pronóstico)
+        futuras_fechas = pd.date_range(ventas_mensuales["Fecha"].iloc[-1] + pd.DateOffset(months=1), periods=meses_futuros, freq="M")
+        datos_pronostico = pd.DataFrame({
+            "Fecha": futuras_fechas,
+            "Total_Monto": predicciones,
+            "Tipo": "Pronóstico"
+        })
+
+        ventas_mensuales["Tipo"] = "Histórico"
+        datos_completos = pd.concat([ventas_mensuales, datos_pronostico], ignore_index=True)
+
+        # Gráfico de series de tiempo
+        fig = px.line(
+            datos_completos,
+            x="Fecha",
+            y="Total_Monto",
+            color="Tipo",
+            title="Pronóstico y Tendencias de Ventas Mensuales",
+            labels={"Total_Monto": "Monto Total", "Fecha": "Mes"}
+        )
+        st.plotly_chart(fig)
+
+    else:
+        st.warning("Se necesitan más puntos de datos para realizar un pronóstico.")
+
+# Resumen del Pronóstico
+st.subheader("Resumen del Pronóstico Anual")
+if 'predicciones' in locals():
+    promedio_pronostico = predicciones.mean()
+    st.metric(label="Promedio Mensual Pronosticado", value=f"${promedio_pronostico:,.2f}")
+else:
+    st.warning("No se pudo calcular un pronóstico mensual.")
+
+# Gráfico de Monto por Área
+st.subheader("Distribución de Montos por Área")
+tabla_area = datos_validados.groupby("Area").agg(
     Total_Monto=("Monto", "sum")
 ).reset_index()
 
-def graficar_por_area(datos):
-    fig = px.bar(
-        datos,
+if not tabla_area.empty:
+    fig_area = px.bar(
+        tabla_area,
         x="Area",
         y="Total_Monto",
-        color="Area",
-        title="Monto Total de Cotizaciones por Área",
+        title="Distribución de Montos por Área",
         labels={"Total_Monto": "Monto Total", "Area": "Área"},
         text="Total_Monto",
-        color_discrete_sequence=px.colors.qualitative.Vivid
+        color="Area",
+        color_discrete_sequence=px.colors.qualitative.Plotly
     )
-    fig.update_traces(texttemplate="%{text:.2s}", textposition="outside")
-    fig.update_layout(xaxis_title="Área", yaxis_title="Monto Total", xaxis_tickangle=-45)
-    st.plotly_chart(fig)
+    fig_area.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+    st.plotly_chart(fig_area)
+else:
+    st.warning("No hay datos disponibles para graficar por área.")
 
-graficar_por_area(grafico_area)
+# Exportación de datos procesados
+st.subheader("Exportación de Datos Procesados")
+st.download_button(
+    label="Descargar Cotizaciones Actualizadas",
+    data=datos_validados.to_csv(index=False).encode('utf-8'),
+    file_name="cotizaciones_actualizadas.csv",
+    mime="text/csv"
+)
 
-# Comparativa entre Vendedores
+# Fin de la Parte 2
+st.markdown("---")
+st.info("Esta sección incluye el análisis de pronóstico y tendencias basado en los datos actuales.")
+# Continuación del Dashboard: Parte 3
+
+# Comparativa de Vendedores
 st.subheader("Desempeño de Vendedores")
 
-grafico_vendedores = cotizaciones_editables.groupby("Vendedor").agg(
+grafico_vendedores = datos_validados.groupby("Vendedor").agg(
     Total_Cotizaciones=("Monto", "count"),
     Total_Monto=("Monto", "sum"),
     Promedio_Avance=("Avance_Porcentaje", "mean")
 ).reset_index()
 
-def graficar_por_vendedor(datos):
-    fig = px.bar(
-        datos,
+if not grafico_vendedores.empty:
+    fig_vendedores = px.bar(
+        grafico_vendedores,
         x="Vendedor",
         y="Total_Monto",
         color="Promedio_Avance",
@@ -273,31 +245,57 @@ def graficar_por_vendedor(datos):
         text="Total_Monto",
         color_continuous_scale="Bluered"
     )
-    fig.update_traces(texttemplate="%{text:.2s}", textposition="outside")
-    fig.update_layout(xaxis_title="Vendedor", yaxis_title="Monto Total", xaxis_tickangle=-45)
-    st.plotly_chart(fig)
+    fig_vendedores.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+    fig_vendedores.update_layout(xaxis_title="Vendedor", yaxis_title="Monto Total", xaxis_tickangle=-45)
+    st.plotly_chart(fig_vendedores)
+else:
+    st.warning("No hay datos disponibles para graficar el desempeño por vendedor.")
 
-graficar_por_vendedor(grafico_vendedores)
+# Evaluación por Clasificación
+st.subheader("Desempeño por Clasificación de Clientes")
+
+grafico_clasificacion = datos_validados.groupby("Clasificacion").agg(
+    Total_Cotizaciones=("Monto", "count"),
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean")
+).reset_index()
+
+if not grafico_clasificacion.empty:
+    fig_clasificacion = px.bar(
+        grafico_clasificacion,
+        x="Clasificacion",
+        y="Total_Monto",
+        color="Promedio_Avance",
+        title="Monto Total por Clasificación de Clientes",
+        labels={"Total_Monto": "Monto Total", "Clasificacion": "Clasificación", "Promedio_Avance": "Avance Promedio"},
+        text="Total_Monto",
+        color_continuous_scale="Viridis"
+    )
+    fig_clasificacion.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+    fig_clasificacion.update_layout(xaxis_title="Clasificación", yaxis_title="Monto Total")
+    st.plotly_chart(fig_clasificacion)
+else:
+    st.warning("No hay datos disponibles para graficar por clasificación de clientes.")
 
 # Filtros Dinámicos para Cotizaciones
 st.subheader("Explorar Cotizaciones con Filtros Dinámicos")
 
 # Filtro por cliente
 cliente_seleccionado = st.selectbox(
-    "Selecciona un cliente para filtrar:", options=["Todos"] + list(cotizaciones_editables["Cliente"].unique())
+    "Selecciona un cliente para filtrar:", options=["Todos"] + list(datos_validados["Cliente"].unique())
 )
 
 # Filtro por estado de semáforo
 estado_seleccionado = st.selectbox(
-    "Selecciona un estado para filtrar:", options=["Todos"] + list(cotizaciones_editables["Estado_Semaforo"].unique())
+    "Selecciona un estado para filtrar:", options=["Todos"] + list(datos_validados["Semaforo"].unique())
 )
 
 # Aplicar filtros
-filtros = cotizaciones_editables.copy()
+filtros = datos_validados.copy()
 if cliente_seleccionado != "Todos":
     filtros = filtros[filtros["Cliente"] == cliente_seleccionado]
 if estado_seleccionado != "Todos":
-    filtros = filtros[filtros["Estado_Semaforo"] == estado_seleccionado]
+    filtros = filtros[filtros["Semaforo"] == estado_seleccionado]
 
 # Mostrar resultados filtrados
 st.write("Resultados Filtrados:")
@@ -306,7 +304,7 @@ st.dataframe(filtros, use_container_width=True)
 # Gráfico dinámico basado en filtros
 if not filtros.empty:
     st.subheader("Distribución de Montos Filtrados")
-    fig = px.histogram(
+    fig_filtros = px.histogram(
         filtros,
         x="Monto",
         nbins=15,
@@ -314,34 +312,116 @@ if not filtros.empty:
         labels={"Monto": "Monto"},
         color_discrete_sequence=["blue"]
     )
-    fig.update_layout(xaxis_title="Monto", yaxis_title="Frecuencia")
-    st.plotly_chart(fig)
+    fig_filtros.update_layout(xaxis_title="Monto", yaxis_title="Frecuencia")
+    st.plotly_chart(fig_filtros)
 else:
     st.warning("No hay datos que coincidan con los filtros seleccionados.")
 
-# Evaluación de Desempeño por Clasificación
-st.subheader("Desempeño por Clasificación de Clientes")
+# Exportación de Resultados Filtrados
+st.subheader("Exportar Resultados Filtrados")
+if not filtros.empty:
+    st.download_button(
+        label="Descargar Datos Filtrados",
+        data=filtros.to_csv(index=False).encode("utf-8"),
+        file_name="cotizaciones_filtradas.csv",
+        mime="text/csv"
+    )
+else:
+    st.warning("No hay datos disponibles para exportar.")
 
-grafico_clasificacion = cotizaciones_editables.groupby("Clasificacion").agg(
-    Total_Cotizaciones=("Monto", "count"),
+# Finalización de la Parte 3
+st.markdown("---")
+st.info("Concluimos con los análisis de clasificación, desempeño por vendedor y filtros dinámicos.")
+# Continuación del Dashboard: Parte 4
+
+# Análisis Dinámico por Área y Cliente
+st.subheader("Análisis Avanzado por Área y Cliente")
+
+# Crear una tabla cruzada entre Área y Cliente
+tabla_cruzada = pd.pivot_table(
+    datos_validados,
+    values="Monto",
+    index="Area",
+    columns="Cliente",
+    aggfunc="sum",
+    fill_value=0
+)
+
+st.markdown("### Tabla Cruzada: Área vs Cliente")
+st.dataframe(tabla_cruzada, use_container_width=True)
+
+# Gráfico de Heatmap
+st.markdown("### Heatmap de Montos por Área y Cliente")
+fig_heatmap = go.Figure(
+    data=go.Heatmap(
+        z=tabla_cruzada.values,
+        x=tabla_cruzada.columns,
+        y=tabla_cruzada.index,
+        colorscale="Viridis",
+        colorbar=dict(title="Monto Total")
+    )
+)
+fig_heatmap.update_layout(
+    title="Distribución de Montos por Área y Cliente",
+    xaxis_title="Cliente",
+    yaxis_title="Área"
+)
+st.plotly_chart(fig_heatmap)
+
+# Análisis de Cotizaciones por Estado
+st.subheader("Análisis de Cotizaciones por Estado")
+
+# Crear una tabla resumida por estado
+tabla_estado = datos_validados.groupby("Estatus").agg(
     Total_Monto=("Monto", "sum"),
-    Promedio_Avance=("Avance_Porcentaje", "mean")
+    Promedio_Avance=("Avance_Porcentaje", "mean"),
+    Total_Cotizaciones=("Estatus", "count")
 ).reset_index()
 
-fig = px.bar(
-    grafico_clasificacion,
-    x="Clasificacion",
+# Mostrar tabla resumida
+st.markdown("### Resumen por Estado")
+st.dataframe(tabla_estado, use_container_width=True)
+
+# Gráfico de Barras por Estado
+st.markdown("### Gráfico de Barras por Estado")
+fig_estado = px.bar(
+    tabla_estado,
+    x="Estatus",
     y="Total_Monto",
-    color="Promedio_Avance",
-    title="Monto Total por Clasificación de Clientes",
-    labels={"Total_Monto": "Monto Total", "Clasificacion": "Clasificación", "Promedio_Avance": "Avance Promedio"},
+    title="Monto Total por Estado",
+    labels={"Total_Monto": "Monto Total", "Estatus": "Estado"},
     text="Total_Monto",
-    color_continuous_scale="Viridis"
+    color="Estatus",
+    color_discrete_sequence=px.colors.qualitative.Set2
 )
-fig.update_traces(texttemplate="%{text:.2s}", textposition="outside")
-fig.update_layout(xaxis_title="Clasificación", yaxis_title="Monto Total")
-st.plotly_chart(fig)
+fig_estado.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+fig_estado.update_layout(xaxis_title="Estado", yaxis_title="Monto Total")
+st.plotly_chart(fig_estado)
+
+# Reporte Consolidado
+st.subheader("Generar Reporte Consolidado")
+
+# Consolidar todas las tablas en un archivo Excel
+import io
+from pandas import ExcelWriter
+
+output = io.BytesIO()
+with ExcelWriter(output, engine="xlsxwriter") as writer:
+    datos_validados.to_excel(writer, sheet_name="Cotizaciones", index=False)
+    tabla_cliente.to_excel(writer, sheet_name="Resumen_Cliente", index=False)
+    tabla_area.to_excel(writer, sheet_name="Resumen_Area", index=False)
+    tabla_estado.to_excel(writer, sheet_name="Resumen_Estado", index=False)
+    tabla_cruzada.to_excel(writer, sheet_name="Cruzada_Area_Cliente")
+    writer.save()
+
+output.seek(0)
+st.download_button(
+    label="Descargar Reporte Consolidado",
+    data=output,
+    file_name="reporte_cotizaciones.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 # Finalización
 st.markdown("---")
-st.info("Concluimos el análisis dinámico y exploración de cotizaciones. Utiliza las herramientas para tomar decisiones informadas.")
+st.info("Gracias por utilizar el Dashboard de Cotizaciones. Todas las funcionalidades han sido cubiertas.")
