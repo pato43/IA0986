@@ -284,7 +284,7 @@ def preparar_datos_pronostico(df, columna_tiempo="Fecha_Envio", columna_valor="M
 
 datos_pronostico = preparar_datos_pronostico(cotizaciones)
 
-# Simulación de datos si hay menos de 12 meses
+# Validar datos temporales
 if len(datos_pronostico) < 12:
     st.warning("No hay suficientes datos históricos para realizar un pronóstico confiable. Se están simulando datos para completar los registros.")
     meses_faltantes = 12 - len(datos_pronostico)
@@ -295,18 +295,20 @@ if len(datos_pronostico) < 12:
     montos_simulados = [datos_pronostico["Monto"].mean() for _ in range(meses_faltantes)]
     datos_simulados = pd.DataFrame({"Fecha_Envio": fechas_simuladas, "Monto": montos_simulados})
     datos_pronostico = pd.concat([datos_pronostico, datos_simulados]).reset_index(drop=True)
+    datos_pronostico = datos_pronostico.sort_values(by="Fecha_Envio")
 
 # Pronóstico de ventas usando Holt-Winters
 try:
     modelo = ExponentialSmoothing(
-        datos_pronostico["Monto"],
+        datos_pronostico["Monto"].values,
         seasonal="add", 
         seasonal_periods=12,
-        trend="add"
+        trend="add",
+        initialization_method="estimated"
     )
     modelo_ajustado = modelo.fit()
     pronostico = modelo_ajustado.forecast(steps=12)
-except ValueError as e:
+except Exception as e:
     st.error(f"Error al ajustar el modelo: {e}")
     pronostico = pd.Series([datos_pronostico["Monto"].mean()] * 12)
 
