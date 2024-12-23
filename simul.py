@@ -11,11 +11,10 @@ st.set_page_config(
 )
 
 # Título del dashboard
-st.title("Dashboard de Automatización de Cotizaciones")
+st.title("Dashboard de Cotizaciones - Lectura Rápida y Funcionalidades Esenciales")
 st.markdown(
     """
-    Este dashboard permite gestionar, analizar y pronosticar las cotizaciones de manera eficiente. 
-    Organiza la información en tablas útiles, permite editar datos esenciales y visualizar gráficos interactivos. 
+    Este dashboard permite analizar, filtrar y editar datos esenciales de las cotizaciones de manera interactiva y eficiente. 
     """
 )
 
@@ -29,24 +28,28 @@ def cargar_datos(file_path):
 
 cotizaciones = cargar_datos(FILE_PATH)
 
-# Validar las columnas y asegurarse de que los datos sean del tipo correcto
-columnas_necesarias = ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus", "Fecha", "Area"]
-datos_validados = cotizaciones[columnas_necesarias].copy()
+# Validación y limpieza de columnas necesarias
+columnas_necesarias = [
+    "Area", "Cliente", "Concepto", "Clasificacion", "Vendedor", "Fecha_Inicio", "Duracion_Dias", 
+    "Monto", "Estatus", "Avance_Porcentaje", "2020", "2021", "Pronostico_Suavizado"
+]
+
+# Validar existencia de columnas
+datos_validados = cotizaciones[[col for col in columnas_necesarias if col in cotizaciones.columns]].copy()
 
 def limpiar_y_convertir(df, columna, tipo):
     if tipo == "numerico":
-        df[columna] = pd.to_numeric(df[columna], errors="coerce").fillna(0)
+        df[columna] = pd.to_numeric(df[columna].replace({"$": "", ",": ""}, regex=True), errors="coerce").fillna(0)
     elif tipo == "fecha":
         df[columna] = pd.to_datetime(df[columna], errors="coerce")
     elif tipo == "texto":
         df[columna] = df[columna].fillna("Desconocido")
 
-# Limpiar y convertir datos necesarios
+# Aplicar limpieza a las columnas necesarias
 limpiar_y_convertir(datos_validados, "Monto", "numerico")
 limpiar_y_convertir(datos_validados, "Avance_Porcentaje", "numerico")
-limpiar_y_convertir(datos_validados, "Fecha", "fecha")
+limpiar_y_convertir(datos_validados, "Fecha_Inicio", "fecha")
 limpiar_y_convertir(datos_validados, "Cliente", "texto")
-limpiar_y_convertir(datos_validados, "Area", "texto")
 limpiar_y_convertir(datos_validados, "Estatus", "texto")
 
 # Semáforo en la tabla
@@ -61,8 +64,8 @@ def asignar_estado(avance):
 
 datos_validados["Semaforo"] = datos_validados["Avance_Porcentaje"].apply(asignar_estado)
 
-# Tablas Divididas
-st.subheader("Tablas Esenciales")
+# Tablas esenciales
+st.subheader("Tablas Esenciales para Lectura Rápida")
 
 # Tabla 1: Resumen por cliente
 st.markdown("### Resumen por Cliente")
@@ -91,51 +94,68 @@ tabla_estatus = datos_validados.groupby("Estatus").agg(
 ).reset_index()
 st.dataframe(tabla_estatus, use_container_width=True)
 
+# Tabla 4: Resumen por Clasificación
+st.markdown("### Resumen por Clasificación")
+tabla_clasificacion = datos_validados.groupby("Clasificacion").agg(
+    Total_Monto=("Monto", "sum"),
+    Promedio_Avance=("Avance_Porcentaje", "mean"),
+    Total_Cotizaciones=("Clasificacion", "count")
+).reset_index()
+st.dataframe(tabla_clasificacion, use_container_width=True)
+
+# Filtros simples
+st.subheader("Filtros Simples para Navegación Rápida")
+
+# Filtro por cliente
+cliente_seleccionado = st.selectbox(
+    "Selecciona un cliente para filtrar:", options=["Todos"] + list(datos_validados["Cliente"].unique())
+)
+
+# Filtro por estado
+estado_seleccionado = st.selectbox(
+    "Selecciona un estado para filtrar:", options=["Todos"] + list(datos_validados["Estatus"].unique())
+)
+
+# Aplicar filtros
+filtros = datos_validados.copy()
+if cliente_seleccionado != "Todos":
+    filtros = filtros[filtros["Cliente"] == cliente_seleccionado]
+if estado_seleccionado != "Todos":
+    filtros = filtros[filtros["Estatus"] == estado_seleccionado]
+
+# Mostrar resultados filtrados
+st.write("Resultados Filtrados:")
+st.dataframe(filtros, use_container_width=True)
+
 # Edición de Datos Esenciales
-st.subheader("Editar Datos Esenciales")
-columna_editar = st.selectbox("Selecciona una columna para editar:", ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus", "Area"])
+st.subheader("Edición de Datos Esenciales")
+columna_editar = st.selectbox(
+    "Selecciona una columna para editar:", 
+    ["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus", "Area"]
+)
 
 if columna_editar in ["Monto", "Avance_Porcentaje"]:
     nuevo_valor = st.number_input(f"Nuevo valor para la columna {columna_editar}", min_value=0.0)
     if st.button("Actualizar valores"):
-        datos_validados[columna_editar] = nuevo_valor
+        filtros[columna_editar] = nuevo_valor
         st.success(f"Columna {columna_editar} actualizada correctamente.")
 else:
-    valores_unicos = datos_validados[columna_editar].unique()
+    valores_unicos = filtros[columna_editar].unique()
     nuevo_valor = st.text_input(f"Nuevo valor para la columna {columna_editar}")
     valor_a_reemplazar = st.selectbox(f"Selecciona un valor a reemplazar en {columna_editar}", valores_unicos)
     if st.button("Actualizar valores"):
-        datos_validados[columna_editar] = datos_validados[columna_editar].replace(valor_a_reemplazar, nuevo_valor)
+        filtros[columna_editar] = filtros[columna_editar].replace(valor_a_reemplazar, nuevo_valor)
         st.success(f"Columna {columna_editar} actualizada correctamente.")
-
-# Layout Mejorado con Tabs
-st.markdown("---")
-st.markdown("## Navegación de Secciones")
-menu_tabs = st.tabs(["Inicio", "Tablas Resumidas", "Edición de Datos"])
-
-with menu_tabs[0]:
-    st.write("Bienvenido al Dashboard de Cotizaciones. Utiliza las pestañas para navegar entre las secciones.")
-
-with menu_tabs[1]:
-    st.subheader("Tablas Resumidas")
-    st.markdown("Consulta los resúmenes organizados por cliente, área y estatus.")
-    st.dataframe(tabla_cliente, use_container_width=True)
-    st.dataframe(tabla_area, use_container_width=True)
-    st.dataframe(tabla_estatus, use_container_width=True)
-
-with menu_tabs[2]:
-    st.subheader("Edición de Datos Esenciales")
-    st.write("Utiliza las herramientas interactivas para editar los datos más relevantes.")
 # Continuación del Dashboard: Parte 2
 
 # Gráficos de Pronóstico y Tendencias
 st.subheader("Pronóstico y Análisis de Tendencias")
 
 # Datos para series de tiempo
-ventas_mensuales = datos_validados.groupby(pd.to_datetime(datos_validados["Fecha"], errors="coerce").dt.to_period("M")).agg(
+ventas_mensuales = datos_validados.groupby(pd.to_datetime(datos_validados["Fecha_Inicio"], errors="coerce").dt.to_period("M")).agg(
     Total_Monto=("Monto", "sum")
 ).reset_index()
-ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
+ventas_mensuales["Fecha"] = ventas_mensuales["Fecha_Inicio"].dt.to_timestamp()
 
 # Validar datos antes de realizar gráficos
 if ventas_mensuales.empty:
