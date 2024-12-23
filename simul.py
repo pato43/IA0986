@@ -26,6 +26,9 @@ def cargar_datos(file_path):
     df_copia["2021"] = pd.to_numeric(df_copia["2021"].replace({"\$": "", ",": ""}, regex=True), errors="coerce").fillna(3000000)
     df_copia["Estatus"] = df_copia["Estatus"].fillna("Desconocido")
 
+    # Manejo de valores nulos en Cliente
+    df_copia["Cliente"] = df_copia["Cliente"].fillna("Cliente_Desconocido")
+
     # Agregar semáforo dinámico
     df_copia["Semaforo"] = df_copia["Avance_Porcentaje"].apply(
         lambda x: "🟢 Aprobada" if x >= 75 else ("🟡 Pendiente" if x >= 50 else "🔴 Rechazada")
@@ -46,7 +49,7 @@ st.title("Dashboard de Cotizaciones")
 st.markdown("Este dashboard permite gestionar cotizaciones de manera eficiente, simulando datos donde sea necesario.")
 
 st.subheader("Estado General de Clientes")
-st.dataframe(cotizaciones[["Cliente", "Monto", "Estatus", "Semaforo", "Metodo_Captura"]], use_container_width=True)
+st.dataframe(cotizaciones["Cliente", "Monto", "Estatus", "Semaforo", "Metodo_Captura"], use_container_width=True)
 
 # Gráfico: Distribución por método de captura
 st.subheader("Distribución por Método de Captura")
