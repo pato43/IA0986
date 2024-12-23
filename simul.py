@@ -172,12 +172,12 @@ st.subheader("Explorar Cotizaciones con Filtros Dinámicos")
 
 # Filtro por cliente
 cliente_seleccionado = st.selectbox(
-    "Selecciona un cliente para filtrar:", ["Todos"] + cotizaciones["Cliente"].unique().tolist()
+    "Selecciona un cliente para filtrar:", ["Todos"] + cotizaciones["Cliente"].unique().tolist(), key="filtro_cliente"
 )
 
 # Filtro por estatus
 estatus_seleccionado = st.selectbox(
-    "Selecciona un estatus para filtrar:", ["Todos"] + cotizaciones["Estatus"].unique().tolist()
+    "Selecciona un estatus para filtrar:", ["Todos"] + cotizaciones["Estatus"].unique().tolist(), key="filtro_estatus"
 )
 
 # Filtro por rango de montos
@@ -185,7 +185,8 @@ monto_min, monto_max = st.slider(
     "Selecciona el rango de montos:",
     min_value=float(cotizaciones["Monto"].min()),
     max_value=float(cotizaciones["Monto"].max()),
-    value=(float(cotizaciones["Monto"].min()), float(cotizaciones["Monto"].max()))
+    value=(float(cotizaciones["Monto"].min()), float(cotizaciones["Monto"].max())),
+    key="filtro_montos"
 )
 
 # Aplicar filtros
@@ -211,11 +212,13 @@ col3.metric("Promedio de Avance", f"{datos_filtrados['Avance_Porcentaje'].mean()
 st.subheader("Edición Interactiva de Datos")
 
 # Selección de columna para editar
-columna_editar = st.selectbox("Selecciona una columna para editar:", ["Monto", "Estatus", "Metodo_Captura", "Duracion_Dias"])
+columna_editar = st.selectbox(
+    "Selecciona una columna para editar:", ["Monto", "Estatus", "Metodo_Captura", "Duracion_Dias"], key="columna_editar"
+)
 
 # Nueva entrada para la columna seleccionada
-nuevo_valor = st.text_input("Introduce un nuevo valor para la columna seleccionada:")
-if st.button("Aplicar Cambios a Datos Filtrados"):
+nuevo_valor = st.text_input("Introduce un nuevo valor para la columna seleccionada:", key="nuevo_valor")
+if st.button("Aplicar Cambios a Datos Filtrados", key="boton_aplicar"):
     try:
         if columna_editar in ["Monto", "Duracion_Dias"]:
             nuevo_valor = float(nuevo_valor)
