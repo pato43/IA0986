@@ -163,3 +163,108 @@ st.download_button(
     file_name="reporte_analisis.csv",
     mime="text/csv"
 )
+
+# Continuación del dashboard: Parte 3
+st.header("Filtros Dinámicos y Edición de Datos")
+
+# Filtros dinámicos
+st.subheader("Explorar Cotizaciones con Filtros Dinámicos")
+
+# Filtro por cliente
+cliente_seleccionado = st.selectbox(
+    "Selecciona un cliente para filtrar:", ["Todos"] + cotizaciones["Cliente"].unique().tolist()
+)
+
+# Filtro por estatus
+estatus_seleccionado = st.selectbox(
+    "Selecciona un estatus para filtrar:", ["Todos"] + cotizaciones["Estatus"].unique().tolist()
+)
+
+# Filtro por rango de montos
+monto_min, monto_max = st.slider(
+    "Selecciona el rango de montos:",
+    min_value=float(cotizaciones["Monto"].min()),
+    max_value=float(cotizaciones["Monto"].max()),
+    value=(float(cotizaciones["Monto"].min()), float(cotizaciones["Monto"].max()))
+)
+
+# Aplicar filtros
+datos_filtrados = cotizaciones.copy()
+if cliente_seleccionado != "Todos":
+    datos_filtrados = datos_filtrados[datos_filtrados["Cliente"] == cliente_seleccionado]
+if estatus_seleccionado != "Todos":
+    datos_filtrados = datos_filtrados[datos_filtrados["Estatus"] == estatus_seleccionado]
+datos_filtrados = datos_filtrados[(datos_filtrados["Monto"] >= monto_min) & (datos_filtrados["Monto"] <= monto_max)]
+
+# Mostrar resultados filtrados
+st.write("Resultados Filtrados:")
+st.dataframe(datos_filtrados, use_container_width=True)
+
+# Métricas dinámicas basadas en filtros
+st.subheader("Métricas Basadas en Filtros")
+col1, col2, col3 = st.columns(3)
+col1.metric("Cotizaciones Filtradas", len(datos_filtrados))
+col2.metric("Monto Total Filtrado", f"${datos_filtrados['Monto'].sum():,.2f}")
+col3.metric("Promedio de Avance", f"{datos_filtrados['Avance_Porcentaje'].mean():.2f}%")
+
+# Edición de datos filtrados
+st.subheader("Edición Interactiva de Datos")
+
+# Selección de columna para editar
+columna_editar = st.selectbox("Selecciona una columna para editar:", ["Monto", "Estatus", "Metodo_Captura", "Duracion_Dias"])
+
+# Nueva entrada para la columna seleccionada
+nuevo_valor = st.text_input("Introduce un nuevo valor para la columna seleccionada:")
+if st.button("Aplicar Cambios a Datos Filtrados"):
+    try:
+        if columna_editar in ["Monto", "Duracion_Dias"]:
+            nuevo_valor = float(nuevo_valor)
+        datos_filtrados[columna_editar] = nuevo_valor
+        st.success(f"Los valores de la columna {columna_editar} se han actualizado correctamente.")
+    except ValueError:
+        st.error("El valor introducido no es válido para la columna seleccionada.")
+
+# Gráfico: Distribución de Montos Filtrados
+st.subheader("Distribución de Montos Filtrados")
+if not datos_filtrados.empty:
+    fig_distribucion = px.histogram(
+        datos_filtrados,
+        x="Monto",
+        nbins=20,
+        title="Distribución de Montos Filtrados",
+        labels={"Monto": "Monto Total"},
+        color_discrete_sequence=["blue"]
+    )
+    fig_distribucion.update_layout(xaxis_title="Monto", yaxis_title="Frecuencia")
+    st.plotly_chart(fig_distribucion)
+else:
+    st.warning("No hay datos que coincidan con los filtros seleccionados.")
+
+# Gráfico: Avance Promedio por Estatus
+st.subheader("Avance Promedio por Estatus")
+if not datos_filtrados.empty:
+    fig_avance = px.bar(
+        datos_filtrados.groupby("Estatus").agg(Avance_Promedio=("Avance_Porcentaje", "mean")).reset_index(),
+        x="Estatus",
+        y="Avance_Promedio",
+        color="Estatus",
+        title="Avance Promedio por Estatus",
+        labels={"Avance_Promedio": "Promedio de Avance (%)", "Estatus": "Estatus"},
+        color_discrete_sequence=px.colors.qualitative.Set2
+    )
+    fig_avance.update_layout(xaxis_title="Estatus", yaxis_title="Promedio de Avance (%)")
+    st.plotly_chart(fig_avance)
+else:
+    st.warning("No hay datos suficientes para generar el gráfico de avance promedio.")
+
+# Exportar resultados filtrados
+st.subheader("Exportar Resultados Filtrados")
+if not datos_filtrados.empty:
+    st.download_button(
+        label="Descargar Datos Filtrados",
+        data=datos_filtrados.to_csv(index=False).encode("utf-8"),
+        file_name="cotizaciones_filtradas.csv",
+        mime="text/csv"
+    )
+else:
+    st.warning("No hay datos disponibles para exportar.")
