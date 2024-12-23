@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # Path fijo al archivo CSV
-RUTA_CSV = "ruta/a/tu/archivo/coti.csv"
+RUTA_CSV = "cleaned_coti.csv"
 
 # Función para cargar el archivo CSV
 @st.cache_data
