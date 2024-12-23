@@ -5,7 +5,7 @@ import streamlit as st
 st.set_page_config(page_title="Dashboard de Cotizaciones", layout="wide")
 
 # Ruta del archivo CSV limpio
-csv_path = "path/to/coti_limpio.csv"
+csv_path = "cleaned_coti.csv"
 
 # Cargar datos
 @st.cache_data
