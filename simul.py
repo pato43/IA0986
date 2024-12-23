@@ -8,7 +8,7 @@ import numpy as np
 # Configuración inicial de la página
 st.set_page_config(
     page_title="Dashboard de Cotizaciones",
-    page_icon="📈",
+    page_icon="📊",
     layout="wide"
 )
 
@@ -31,6 +31,12 @@ st.markdown(
     }
     .sidebar .sidebar-content {
         background-color: #f4f4f9;
+        padding: 20px;
+    }
+    .stButton > button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 8px;
     }
     </style>
     """,
@@ -41,7 +47,7 @@ st.markdown(
 st.markdown(
     """
     <h1 class="title">Dashboard de Cotizaciones</h1>
-    <p class="subtitle">Optimiza la gestión de tus cotizaciones con análisis interactivo</p>
+    <p class="subtitle">Optimiza la gestión de tus cotizaciones con análisis interactivo y herramientas avanzadas</p>
     """,
     unsafe_allow_html=True
 )
@@ -61,7 +67,7 @@ def cargar_datos(file_path):
     try:
         datos = pd.read_csv(file_path)
         if "Fecha" not in datos.columns:
-            datos["Fecha"] = pd.to_datetime("2023-01-01")  # Agregar columna ficticia si falta
+            datos["Fecha"] = pd.to_datetime("2023-01-01")  # Columna ficticia si falta
         return datos
     except Exception as e:
         st.error(f"Error al cargar los datos: {e}")
@@ -145,7 +151,10 @@ if menu == "Análisis de Estados y Ventas":
 
         # Limpiar datos de ventas mensuales
         ventas_mensuales = ventas_mensuales.dropna(subset=["Total_Monto"])
-        ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
+        try:
+            ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
+        except ValueError:
+            st.error("Error al convertir los montos a valores numéricos.")
 
         ventas_mensuales["Mes"] = range(len(ventas_mensuales))
         X = ventas_mensuales[["Mes"]]
@@ -199,6 +208,7 @@ st.subheader("Análisis de Cotizaciones 2020-2021")
 cotizaciones_fechas = cotizaciones.copy()
 cotizaciones_fechas["Año"] = pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.year
 
+# Filtrar datos para los años 2020 y 2021
 datos_2020_2021 = cotizaciones_fechas[cotizaciones_fechas["Año"].isin([2020, 2021])]
 cotizaciones_anuales = datos_2020_2021.groupby("Año").agg(
     Total_Cotizaciones=("Monto", "count"),
@@ -233,7 +243,10 @@ ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
 
 # Limpiar datos de ventas mensuales
 ventas_mensuales = ventas_mensuales.dropna(subset=["Total_Monto"])
-ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
+try:
+    ventas_mensuales["Total_Monto"] = ventas_mensuales["Total_Monto"].astype(float)
+except ValueError:
+    st.error("Algunos valores no son numéricos en la columna 'Monto'. Por favor, revisa los datos.")
 
 # Modelo de pronóstico
 ventas_mensuales["Mes"] = range(len(ventas_mensuales))
@@ -300,7 +313,7 @@ with col3:
     st.metric("Crecimiento Estimado (%)", f"{crecimiento_estimado:.2f}%")
 # Parte 3: Filtros Dinámicos, Exportación y Métricas Finales
 
-# Sección: Filtros Dinámicos
+# Filtros Dinámicos
 st.subheader("Filtros Dinámicos de Cotizaciones")
 st.write("Refina las cotizaciones según diferentes criterios para análisis específico.")
 
