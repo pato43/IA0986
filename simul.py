@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.linear_model import LinearRegression
-import numpy as np
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -12,30 +10,59 @@ st.set_page_config(
     layout="wide"
 )
 
-# Título del dashboard
-st.title("Dashboard de Automatización de Cotizaciones")
+# Título del dashboard con estilo
+st.markdown(
+    """
+    <style>
+    .title {
+        text-align: center;
+        font-size: 40px;
+        color: #4CAF50;
+        margin-bottom: 20px;
+    }
+    .subtitle {
+        text-align: center;
+        font-size: 24px;
+        color: #555555;
+    }
+    </style>
+    <h1 class="title">Dashboard de Automatización de Cotizaciones</h1>
+    <p class="subtitle">Gestión, análisis y visualización de datos clave</p>
+    """,
+    unsafe_allow_html=True
+)
 
-# Menú principal
-menu = st.sidebar.radio("Navegación", ["Vista Previa", "Estados", "Editar Datos", "Resumen y Reporte"])
+# Menú principal con estilo
+menu = st.sidebar.radio(
+    "📋 Navegación",
+    ["Vista Previa", "Estados", "Editar Datos", "Resumen y Reporte"],
+    index=0
+)
 
 # Ruta al archivo CSV
 FILE_PATH = "cleaned_coti.csv"
 
 @st.cache_data
 def cargar_datos(file_path):
-    datos = pd.read_csv(file_path)
-    return datos
+    try:
+        datos = pd.read_csv(file_path)
+        if "Fecha" not in datos.columns:
+            datos["Fecha"] = pd.to_datetime("2023-01-01")  # Agregar columna ficticia si falta
+        return datos
+    except Exception as e:
+        st.error(f"Error al cargar los datos: {e}")
+        return pd.DataFrame()
 
 cotizaciones = cargar_datos(FILE_PATH)
 
 if menu == "Vista Previa":
     # Mostrar los primeros registros para referencia
-    st.subheader("Vista Previa de Datos")
+    st.subheader("📋 Vista Previa de Datos")
     st.dataframe(cotizaciones.head(), use_container_width=True)
 
 if menu == "Estados":
     # Determinación del estado del semáforo
-    st.subheader("Estados de Cotizaciones")
+    st.subheader("🚦 Estados de Cotizaciones")
     def asignar_estado(avance):
         if avance == 100:
             return "🟢 Aprobada"
@@ -65,7 +92,7 @@ if menu == "Estados":
 
 if menu == "Editar Datos":
     # Sección para edición de datos relevantes
-    st.subheader("Editar Datos Relevantes")
+    st.subheader("✏️ Editar Datos Relevantes")
     st.write("Modifica los datos clave de las cotizaciones según sea necesario.")
 
     indice_seleccionado = st.selectbox("Selecciona una fila para editar:", cotizaciones.index)
@@ -95,7 +122,7 @@ if menu == "Editar Datos":
 
 if menu == "Resumen y Reporte":
     # Resumen general de cotizaciones
-    st.subheader("Resumen General de Cotizaciones")
+    st.subheader("📊 Resumen General de Cotizaciones")
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -111,7 +138,7 @@ if menu == "Resumen y Reporte":
         st.metric("Avance Promedio", f"{avance_promedio:.2f}%")
 
     # Simular envío de reporte por correo
-    st.subheader("Enviar Reporte por Correo")
+    st.subheader("✉️ Enviar Reporte por Correo")
     correo = st.text_input("Ingresa el correo electrónico del destinatario")
     if st.button("Enviar Reporte"):
         if correo:
