@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.linear_model import LinearRegression
-import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -16,8 +14,7 @@ st.set_page_config(
 st.title("Dashboard de Automatización de Cotizaciones")
 st.markdown(
     """
-    Este dashboard permite gestionar, analizar y pronosticar las cotizaciones de manera eficiente. A continuación, 
-    podrás visualizar datos clave, realizar ediciones y explorar tendencias de las cotizaciones.
+    Este dashboard permite gestionar, analizar y pronosticar las cotizaciones de manera eficiente. Puedes editar datos esenciales, visualizar tendencias y realizar análisis profundos.
     """
 )
 
@@ -31,31 +28,46 @@ def cargar_datos(file_path):
 
 cotizaciones = cargar_datos(FILE_PATH)
 
+# Clonar DataFrame para ediciones
+cotizaciones_editables = cotizaciones.copy()
+
 # Validar y convertir columnas relevantes
 numericas = ["Monto", "Avance_Porcentaje"]
 for col in numericas:
-    cotizaciones[col] = pd.to_numeric(cotizaciones[col], errors="coerce")
+    cotizaciones_editables[col] = pd.to_numeric(cotizaciones_editables[col], errors="coerce")
 
-# Mostrar los primeros registros para referencia
-st.subheader("Vista Previa de Datos")
-st.dataframe(cotizaciones.head(), use_container_width=True)
+# Layout inicial
+st.subheader("Vista General de Datos")
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.dataframe(cotizaciones_editables.head(), use_container_width=True)
+with col2:
+    st.metric("Total de Cotizaciones", len(cotizaciones_editables))
 
-# Sección para edición de datos relevantes
-st.subheader("Editar Datos Relevantes")
-if st.checkbox("Habilitar edición de datos"):
-    st.warning("Edite con cuidado, estos cambios afectan el archivo cargado.")
-    for columna in cotizaciones.columns:
-        if cotizaciones[columna].dtype == 'object':
-            nuevos_valores = st.text_area(f"Editar valores para {columna}", ", ".join(cotizaciones[columna].dropna().unique()))
-            if nuevos_valores:
-                nuevos_valores = nuevos_valores.split(", ")
-                cotizaciones[columna] = cotizaciones[columna].apply(lambda x: nuevos_valores[0] if x == nuevos_valores[1] else x)
-        elif cotizaciones[columna].dtype in ['int64', 'float64']:
-            min_val = st.number_input(f"Valor mínimo para {columna}", value=float(cotizaciones[columna].min()))
-            max_val = st.number_input(f"Valor máximo para {columna}", value=float(cotizaciones[columna].max()))
-            cotizaciones[columna] = cotizaciones[columna].clip(lower=min_val, upper=max_val)
+# Edición de datos esenciales
+st.subheader("Editar Datos Esenciales")
+columnas_editables = st.multiselect(
+    "Selecciona las columnas a editar:",
+    options=cotizaciones_editables.columns,
+    default=["Cliente", "Concepto", "Monto", "Avance_Porcentaje", "Estatus"]
+)
 
-    st.success("Ediciones aplicadas correctamente.")
+if columnas_editables:
+    st.write("Edita los datos seleccionados directamente:")
+    for columna in columnas_editables:
+        st.markdown(f"### Editar columna: {columna}")
+        if cotizaciones_editables[columna].dtype == "object":
+            unique_values = cotizaciones_editables[columna].dropna().unique()
+            nuevo_valor = st.text_input(f"Nuevo valor para {columna}")
+            if st.button(f"Aplicar a {columna}"):
+                cotizaciones_editables[columna] = cotizaciones_editables[columna].replace(unique_values, nuevo_valor)
+                st.success(f"Valores en la columna {columna} actualizados.")
+        elif cotizaciones_editables[columna].dtype in ["int64", "float64"]:
+            min_val = st.number_input(f"Valor mínimo para {columna}", value=float(cotizaciones_editables[columna].min()))
+            max_val = st.number_input(f"Valor máximo para {columna}", value=float(cotizaciones_editables[columna].max()))
+            if st.button(f"Aplicar rango a {columna}"):
+                cotizaciones_editables[columna] = cotizaciones_editables[columna].clip(lower=min_val, upper=max_val)
+                st.success(f"Valores en la columna {columna} ajustados al rango especificado.")
 
 # Determinación del estado del semáforo
 st.subheader("Estados de Cotizaciones")
@@ -67,59 +79,60 @@ def asignar_estado(avance):
     else:
         return "🔴 Rechazada"
 
-cotizaciones["Estado_Semaforo"] = cotizaciones["Avance_Porcentaje"].apply(asignar_estado)
+cotizaciones_editables["Estado_Semaforo"] = cotizaciones_editables["Avance_Porcentaje"].apply(asignar_estado)
 
 # Tabla resumen por estado
 st.write("Distribución de Estados de las Cotizaciones:")
-estados_resumen = cotizaciones["Estado_Semaforo"].value_counts().reset_index()
+estados_resumen = cotizaciones_editables["Estado_Semaforo"].value_counts().reset_index()
 estados_resumen.columns = ["Estado", "Cantidad"]
-col1, col2 = st.columns([2, 1])
-with col1:
+col3, col4 = st.columns([2, 1])
+with col3:
     st.dataframe(estados_resumen, use_container_width=True)
-
-# Gráfico de barras para estados
-def graficar_estados(datos):
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.barplot(data=datos, x="Estado", y="Cantidad", palette="viridis", ax=ax)
-    ax.set_title("Distribución de Estados de Cotizaciones", fontsize=14)
-    ax.set_ylabel("Cantidad", fontsize=12)
-    ax.set_xlabel("Estado", fontsize=12)
-    st.pyplot(fig)
-
-with col2:
-    graficar_estados(estados_resumen)
+with col4:
+    fig = px.bar(
+        estados_resumen,
+        x="Estado",
+        y="Cantidad",
+        title="Distribución de Estados de Cotizaciones",
+        color="Estado",
+        text="Cantidad",
+        color_discrete_map={"🟢 Aprobada": "green", "🟡 Pendiente": "yellow", "🔴 Rechazada": "red"}
+    )
+    fig.update_traces(textposition="outside")
+    st.plotly_chart(fig)
 
 # Datos de cotizaciones 2020-2021
 st.subheader("Análisis de Cotizaciones 2020-2021")
-cotizaciones_fechas = cotizaciones.copy()
-cotizaciones_fechas["Año"] = pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.year
+cotizaciones_editables["Año"] = pd.to_datetime(cotizaciones_editables["Fecha"], errors="coerce").dt.year
 
-datos_2020_2021 = cotizaciones_fechas[cotizaciones_fechas["Año"].isin([2020, 2021])]
+datos_2020_2021 = cotizaciones_editables[cotizaciones_editables["Año"].isin([2020, 2021])]
 cotizaciones_anuales = datos_2020_2021.groupby("Año").agg(
     Total_Cotizaciones=("Monto", "count"),
     Total_Monto=("Monto", "sum")
 ).reset_index()
 
-col3, col4 = st.columns([2, 1])
-with col3:
+col5, col6 = st.columns([2, 1])
+with col5:
     st.write("Resumen de Cotizaciones por Año:")
     st.dataframe(cotizaciones_anuales, use_container_width=True)
 
-# Gráfico de barras para 2020-2021
-def graficar_cotizaciones_anuales(datos):
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.barplot(data=datos, x="Año", y="Total_Monto", palette="crest", ax=ax)
-    ax.set_title("Total de Monto por Año (2020-2021)", fontsize=14)
-    ax.set_ylabel("Monto Total", fontsize=12)
-    ax.set_xlabel("Año", fontsize=12)
-    st.pyplot(fig)
-
-with col4:
-    graficar_cotizaciones_anuales(cotizaciones_anuales)
+with col6:
+    fig_anual = px.bar(
+        cotizaciones_anuales,
+        x="Año",
+        y="Total_Monto",
+        title="Monto Total por Año (2020-2021)",
+        text="Total_Monto",
+        color="Año",
+        color_continuous_scale="Blues"
+    )
+    fig_anual.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+    fig_anual.update_layout(showlegend=False)
+    st.plotly_chart(fig_anual)
 
 # Pronóstico de ventas mensuales
 st.subheader("Pronóstico de Ventas Mensuales")
-mes_actual = cotizaciones_fechas[pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.month == 12]
+mes_actual = cotizaciones_editables[pd.to_datetime(cotizaciones_editables["Fecha"], errors="coerce").dt.month == 12]
 total_mes_actual = mes_actual["Monto"].sum()
 st.metric(label="Ventas Estimadas para el Mes Actual", value=f"${total_mes_actual:,.2f}")
 # Continuación del Dashboard: Parte 2
@@ -128,12 +141,13 @@ st.metric(label="Ventas Estimadas para el Mes Actual", value=f"${total_mes_actua
 st.subheader("Pronóstico Anual de Ventas")
 
 # Preparar datos de series de tiempo
-ventas_mensuales = cotizaciones_fechas.groupby(pd.to_datetime(cotizaciones_fechas["Fecha"], errors="coerce").dt.to_period("M")).agg(
+ventas_mensuales = cotizaciones_editables.groupby(pd.to_datetime(cotizaciones_editables["Fecha"], errors="coerce").dt.to_period("M")).agg(
     Total_Monto=("Monto", "sum")
 ).reset_index()
 ventas_mensuales["Fecha"] = ventas_mensuales["Fecha"].dt.to_timestamp()
 
 # Crear modelo de regresión lineal para predicciones
+from sklearn.linear_model import LinearRegression
 modelo = LinearRegression()
 ventas_mensuales["Mes"] = np.arange(len(ventas_mensuales))
 X = ventas_mensuales[["Mes"]]
@@ -161,16 +175,15 @@ if not X.empty and not y.empty:
 
     # Gráfico de series de tiempo
     st.markdown("### Gráfico de Series de Tiempo para Ventas")
-    def graficar_series(datos):
-        fig, ax = plt.subplots(figsize=(10, 5))
-        sns.lineplot(data=datos, x="Fecha", y="Total_Monto", hue="Tipo", palette="tab10", ax=ax)
-        ax.set_title("Pronóstico Anual de Ventas", fontsize=16)
-        ax.set_ylabel("Monto Total", fontsize=12)
-        ax.set_xlabel("Fecha", fontsize=12)
-        ax.legend(title="Tipo de Datos")
-        st.pyplot(fig)
-
-    graficar_series(datos_completos)
+    fig = px.line(
+        datos_completos,
+        x="Fecha",
+        y="Total_Monto",
+        color="Tipo",
+        title="Pronóstico Anual de Ventas",
+        labels={"Total_Monto": "Monto Total", "Fecha": "Mes"}
+    )
+    st.plotly_chart(fig)
 else:
     st.warning("Los datos no son suficientes para generar un modelo de pronóstico.")
 
@@ -181,10 +194,10 @@ st.metric(label="Promedio Pronosticado Mensual", value=f"${promedio_pronostico:,
 
 # Sección de Exportación
 st.subheader("Exportar Datos Procesados")
-if not cotizaciones.empty:
+if not cotizaciones_editables.empty:
     st.download_button(
         label="Descargar Cotizaciones Actualizadas",
-        data=cotizaciones.to_csv(index=False).encode('utf-8'),
+        data=cotizaciones_editables.to_csv(index=False).encode('utf-8'),
         file_name="cotizaciones_actualizadas.csv",
         mime="text/csv"
     )
@@ -193,7 +206,7 @@ if not cotizaciones.empty:
 st.subheader("Análisis Dinámico de Cotizaciones")
 # Agrupación por cliente
 st.markdown("#### Agrupación por Cliente")
-tabla_cliente = cotizaciones.groupby("Cliente").agg(
+tabla_cliente = cotizaciones_editables.groupby("Cliente").agg(
     Total_Monto=("Monto", "sum"),
     Promedio_Avance=("Avance_Porcentaje", "mean"),
     Total_Cotizaciones=("Cliente", "count")
@@ -202,7 +215,7 @@ st.dataframe(tabla_cliente, use_container_width=True)
 
 # Agrupación por estado
 st.markdown("#### Agrupación por Estado de Semáforo")
-tabla_estado = cotizaciones.groupby("Estado_Semaforo").agg(
+tabla_estado = cotizaciones_editables.groupby("Estado_Semaforo").agg(
     Total_Monto=("Monto", "sum"),
     Promedio_Avance=("Avance_Porcentaje", "mean"),
     Total_Cotizaciones=("Estado_Semaforo", "count")
@@ -214,62 +227,73 @@ st.markdown("---")
 st.info("Esta sección concluye el análisis de pronósticos y agrupaciones dinámicas de cotizaciones.")
 # Continuación del Dashboard: Parte 3
 
-# Gráficos avanzados e interactividad adicional
-
-# Visualización de tendencias de cotización por área
+# Comparativa de Tendencias por Área
 st.subheader("Tendencias de Cotización por Área")
 
-grafico_area = cotizaciones.groupby("Area").agg(
+# Agrupar datos por área
+grafico_area = cotizaciones_editables.groupby("Area").agg(
     Total_Cotizaciones=("Monto", "count"),
     Total_Monto=("Monto", "sum")
 ).reset_index()
 
 def graficar_por_area(datos):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(data=datos, x="Area", y="Total_Monto", palette="coolwarm", ax=ax)
-    ax.set_title("Monto Total de Cotizaciones por Área", fontsize=16)
-    ax.set_ylabel("Monto Total", fontsize=12)
-    ax.set_xlabel("Área", fontsize=12)
-    plt.xticks(rotation=45, ha="right")
-    st.pyplot(fig)
+    fig = px.bar(
+        datos,
+        x="Area",
+        y="Total_Monto",
+        color="Area",
+        title="Monto Total de Cotizaciones por Área",
+        labels={"Total_Monto": "Monto Total", "Area": "Área"},
+        text="Total_Monto",
+        color_discrete_sequence=px.colors.qualitative.Vivid
+    )
+    fig.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+    fig.update_layout(xaxis_title="Área", yaxis_title="Monto Total", xaxis_tickangle=-45)
+    st.plotly_chart(fig)
 
 graficar_por_area(grafico_area)
 
-# Comparativa entre vendedores
-st.subheader("Comparativa de Vendedores")
+# Comparativa entre Vendedores
+st.subheader("Desempeño de Vendedores")
 
-grafico_vendedores = cotizaciones.groupby("Vendedor").agg(
+grafico_vendedores = cotizaciones_editables.groupby("Vendedor").agg(
     Total_Cotizaciones=("Monto", "count"),
     Total_Monto=("Monto", "sum"),
     Promedio_Avance=("Avance_Porcentaje", "mean")
 ).reset_index()
 
 def graficar_por_vendedor(datos):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(data=datos, x="Vendedor", y="Total_Monto", palette="magma", ax=ax)
-    ax.set_title("Monto Total de Cotizaciones por Vendedor", fontsize=16)
-    ax.set_ylabel("Monto Total", fontsize=12)
-    ax.set_xlabel("Vendedor", fontsize=12)
-    plt.xticks(rotation=45, ha="right")
-    st.pyplot(fig)
+    fig = px.bar(
+        datos,
+        x="Vendedor",
+        y="Total_Monto",
+        color="Promedio_Avance",
+        title="Monto Total de Cotizaciones por Vendedor",
+        labels={"Total_Monto": "Monto Total", "Vendedor": "Vendedor", "Promedio_Avance": "Avance Promedio"},
+        text="Total_Monto",
+        color_continuous_scale="Bluered"
+    )
+    fig.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+    fig.update_layout(xaxis_title="Vendedor", yaxis_title="Monto Total", xaxis_tickangle=-45)
+    st.plotly_chart(fig)
 
 graficar_por_vendedor(grafico_vendedores)
 
-# Interacción con filtros dinámicos
+# Filtros Dinámicos para Cotizaciones
 st.subheader("Explorar Cotizaciones con Filtros Dinámicos")
 
 # Filtro por cliente
 cliente_seleccionado = st.selectbox(
-    "Selecciona un cliente para filtrar:", options=["Todos"] + list(cotizaciones["Cliente"].unique())
+    "Selecciona un cliente para filtrar:", options=["Todos"] + list(cotizaciones_editables["Cliente"].unique())
 )
 
 # Filtro por estado de semáforo
 estado_seleccionado = st.selectbox(
-    "Selecciona un estado para filtrar:", options=["Todos"] + list(cotizaciones["Estado_Semaforo"].unique())
+    "Selecciona un estado para filtrar:", options=["Todos"] + list(cotizaciones_editables["Estado_Semaforo"].unique())
 )
 
 # Aplicar filtros
-filtros = cotizaciones.copy()
+filtros = cotizaciones_editables.copy()
 if cliente_seleccionado != "Todos":
     filtros = filtros[filtros["Cliente"] == cliente_seleccionado]
 if estado_seleccionado != "Todos":
@@ -282,31 +306,42 @@ st.dataframe(filtros, use_container_width=True)
 # Gráfico dinámico basado en filtros
 if not filtros.empty:
     st.subheader("Distribución de Montos Filtrados")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.histplot(filtros, x="Monto", bins=15, kde=True, color="blue", ax=ax)
-    ax.set_title("Distribución de Montos Filtrados", fontsize=16)
-    ax.set_xlabel("Monto", fontsize=12)
-    ax.set_ylabel("Frecuencia", fontsize=12)
-    st.pyplot(fig)
+    fig = px.histogram(
+        filtros,
+        x="Monto",
+        nbins=15,
+        title="Distribución de Montos Filtrados",
+        labels={"Monto": "Monto"},
+        color_discrete_sequence=["blue"]
+    )
+    fig.update_layout(xaxis_title="Monto", yaxis_title="Frecuencia")
+    st.plotly_chart(fig)
 else:
     st.warning("No hay datos que coincidan con los filtros seleccionados.")
 
-# Evaluación de desempeño por clasificación
+# Evaluación de Desempeño por Clasificación
 st.subheader("Desempeño por Clasificación de Clientes")
 
-grafico_clasificacion = cotizaciones.groupby("Clasificacion").agg(
+grafico_clasificacion = cotizaciones_editables.groupby("Clasificacion").agg(
     Total_Cotizaciones=("Monto", "count"),
     Total_Monto=("Monto", "sum"),
     Promedio_Avance=("Avance_Porcentaje", "mean")
 ).reset_index()
 
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.barplot(data=grafico_clasificacion, x="Clasificacion", y="Total_Monto", palette="cubehelix", ax=ax)
-ax.set_title("Monto Total por Clasificación", fontsize=16)
-ax.set_xlabel("Clasificación", fontsize=12)
-ax.set_ylabel("Monto Total", fontsize=12)
-st.pyplot(fig)
+fig = px.bar(
+    grafico_clasificacion,
+    x="Clasificacion",
+    y="Total_Monto",
+    color="Promedio_Avance",
+    title="Monto Total por Clasificación de Clientes",
+    labels={"Total_Monto": "Monto Total", "Clasificacion": "Clasificación", "Promedio_Avance": "Avance Promedio"},
+    text="Total_Monto",
+    color_continuous_scale="Viridis"
+)
+fig.update_traces(texttemplate="%{text:.2s}", textposition="outside")
+fig.update_layout(xaxis_title="Clasificación", yaxis_title="Monto Total")
+st.plotly_chart(fig)
 
-# Sección final
+# Finalización
 st.markdown("---")
-st.info("Has explorado todas las secciones avanzadas del dashboard. Ahora puedes tomar decisiones más informadas sobre las cotizaciones.")
+st.info("Concluimos el análisis dinámico y exploración de cotizaciones. Utiliza las herramientas para tomar decisiones informadas.")
