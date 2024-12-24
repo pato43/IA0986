@@ -85,6 +85,23 @@ col1.metric("Total Cotizaciones", len(cotizaciones))
 col2.metric("Monto Total", f"${cotizaciones['MONTO'].sum():,.2f}")
 col3.metric("Promedio de Días", f"{cotizaciones['DIAS'].mean():.2f}")
 
+# Edición de datos interactiva
+st.subheader("Edición de Datos")
+cliente_a_editar = st.selectbox("Selecciona un cliente para editar:", cotizaciones["CLIENTE"].unique())
+columna_a_editar = st.selectbox(
+    "Selecciona una columna para editar:",
+    ["MONTO", "ESTATUS", "LLAMADA AL CLIENTE", "DIAS", "Comentarios"]
+)
+nuevo_valor = st.text_input("Introduce el nuevo valor para la columna seleccionada:")
+if st.button("Aplicar Cambios"):
+    try:
+        if columna_a_editar in ["MONTO", "DIAS"]:
+            nuevo_valor = float(nuevo_valor)
+        cotizaciones.loc[cotizaciones["CLIENTE"] == cliente_a_editar, columna_a_editar] = nuevo_valor
+        st.success("¡Los cambios se han aplicado correctamente!")
+    except ValueError:
+        st.error("El valor ingresado no es válido para la columna seleccionada.")
+
 # Sección de comentarios por cliente
 st.subheader("Comentarios por Cliente")
 cliente_comentarios = st.selectbox("Selecciona un cliente para ver o editar comentarios:", cotizaciones["CLIENTE"].unique())
@@ -93,22 +110,6 @@ nuevo_comentario = st.text_area("Comentario Actual:", comentario_actual)
 if st.button("Actualizar Comentario"):
     cotizaciones.loc[cotizaciones["CLIENTE"] == cliente_comentarios, "Comentarios"] = nuevo_comentario
     st.success("Comentario actualizado correctamente.")
-
-# Gráfico de distribución por método de captura
-if "LLAMADA AL CLIENTE" in cotizaciones.columns:
-    st.subheader("Distribución por Método de Captura")
-    fig_metodos = px.bar(
-        cotizaciones.groupby("LLAMADA AL CLIENTE").size().reset_index(name="Cantidad"),
-        x="LLAMADA AL CLIENTE",
-        y="Cantidad",
-        color="LLAMADA AL CLIENTE",
-        title="Cantidad de Cotizaciones por Método de Captura",
-        labels={"LLAMADA AL CLIENTE": "Método de Captura", "Cantidad": "Número de Cotizaciones"}
-    )
-    fig_metodos.update_layout(xaxis_title="Método de Captura", yaxis_title="Cantidad")
-    st.plotly_chart(fig_metodos)
-else:
-    st.warning("Algunos datos relacionados con el método de captura están incompletos.")
 
 # Generación de reportes automatizados
 st.subheader("Reporte Automático de Cotizaciones Aprobadas")
@@ -177,6 +178,7 @@ except Exception as e:
 # Generar PDF con información general
 st.subheader("Generar PDF de Reporte")
 if st.button("Generar Reporte en PDF"):
+    # Aquí se integraría la lógica para crear un PDF (usando librerías como FPDF o ReportLab)
     st.info("Esta funcionalidad está en desarrollo, pero se simula que el PDF se ha generado.")
 
 # Exportar a JSON o CSV para Elevance
@@ -194,7 +196,7 @@ st.download_button(
     mime="text/csv"
 )
 
-# Función para enviar reporte por correo (simulada)
+# Función para enviar correo (simulada)
 st.subheader("Enviar Reporte por Correo")
 correo = st.text_input("Ingresa el correo electrónico:")
 if st.button("Enviar Reporte"):
