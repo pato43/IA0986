@@ -45,6 +45,9 @@ def cargar_datos(file_path):
 # Cargar datos
 cotizaciones = cargar_datos(FILE_PATH)
 
+# Crear una copia para simulación y edición
+cotizaciones_simuladas = cotizaciones.copy()
+
 # Introducción
 st.title("Dashboard de Cotizaciones")
 st.markdown("""
@@ -72,14 +75,14 @@ columnas_mostrar = [
 # Crear opciones dinámicas de filtrado
 filtros = {}
 if st.checkbox("Filtrar por Área"):
-    filtros['AREA'] = st.multiselect("Selecciona Área(s):", options=cotizaciones['AREA'].dropna().unique())
+    filtros['AREA'] = st.multiselect("Selecciona Área(s):", options=cotizaciones_simuladas['AREA'].dropna().unique())
 if st.checkbox("Filtrar por Estatus"):
-    filtros['ESTATUS'] = st.multiselect("Selecciona Estatus(es):", options=cotizaciones['ESTATUS'].dropna().unique())
+    filtros['ESTATUS'] = st.multiselect("Selecciona Estatus(es):", options=cotizaciones_simuladas['ESTATUS'].dropna().unique())
 if st.checkbox("Filtrar por Vendedor"):
-    filtros['VENDEDOR'] = st.multiselect("Selecciona Vendedor(es):", options=cotizaciones['VENDEDOR'].dropna().unique())
+    filtros['VENDEDOR'] = st.multiselect("Selecciona Vendedor(es):", options=cotizaciones_simuladas['VENDEDOR'].dropna().unique())
 
 # Aplicar los filtros dinámicamente
-cotizaciones_filtradas = cotizaciones.copy()
+cotizaciones_filtradas = cotizaciones_simuladas.copy()
 for columna, valores in filtros.items():
     if valores:
         cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas[columna].isin(valores)]
@@ -93,19 +96,30 @@ col1.metric("Total Cotizaciones", len(cotizaciones_filtradas))
 col2.metric("Monto Total", f"${cotizaciones_filtradas['MONTO'].sum():,.2f}")
 col3.metric("Promedio de Días", f"{cotizaciones_filtradas['DIAS'].mean():.2f}")
 
-# Gráfico de Distribución de Montos
-st.subheader("Distribución de Montos")
-fig_montos = px.histogram(cotizaciones_filtradas, x="MONTO", nbins=20, title="Distribución de Montos")
-fig_montos.update_layout(xaxis_title="Monto ($)", yaxis_title="Frecuencia")
-st.plotly_chart(fig_montos)
-
-# Gráfico de Cotizaciones por Área
-st.subheader("Cotizaciones por Área")
-fig_areas = px.bar(
-    cotizaciones_filtradas.groupby("AREA")["MONTO"].sum().reset_index(),
-    x="AREA",
-    y="MONTO",
-    title="Monto Total por Área",
-    labels={"MONTO": "Monto Total ($)", "AREA": "Área"}
+# Gráfico de Proyección Mensual
+st.subheader("Proyección de Ventas del Próximo Mes")
+proyeccion_mensual = cotizaciones_filtradas.groupby(cotizaciones_filtradas["FECHA ENVIO"].str[:7])[["MONTO"]].sum().reset_index()
+proyeccion_mensual.columns = ["Mes", "Monto"]
+fig_proyeccion_mensual = px.line(
+    proyeccion_mensual,
+    x="Mes",
+    y="Monto",
+    title="Proyección Mensual de Ventas",
+    labels={"Mes": "Mes", "Monto": "Monto ($)"},
+    markers=True
 )
-st.plotly_chart(fig_areas)
+st.plotly_chart(fig_proyeccion_mensual)
+
+# Gráfico de Proyección Anual
+st.subheader("Proyección de Ventas Anual")
+proyeccion_anual = cotizaciones_filtradas.groupby(cotizaciones_filtradas["FECHA ENVIO"].str[:4])[["MONTO"]].sum().reset_index()
+proyeccion_anual.columns = ["Año", "Monto"]
+fig_proyeccion_anual = px.line(
+    proyeccion_anual,
+    x="Año",
+    y="Monto",
+    title="Proyección Anual de Ventas",
+    labels={"Año": "Año", "Monto": "Monto ($)"},
+    markers=True
+)
+st.plotly_chart(fig_proyeccion_anual)
