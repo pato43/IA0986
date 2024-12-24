@@ -64,6 +64,20 @@ columnas_mostrar = [
 ]
 st.dataframe(cotizaciones[columnas_mostrar], use_container_width=True)
 
+# Nueva sección: Tabla filtrable para presupuestos, montos y cotizaciones
+st.subheader("Tabla Filtrable: Presupuestos, Montos y Cotizaciones")
+
+# Filtros específicos
+monto_min = st.number_input("Monto mínimo", min_value=0, value=0)
+monto_max = st.number_input("Monto máximo", min_value=0, value=int(cotizaciones["MONTO"].max()))
+
+cotizaciones_filtradas_tabla = cotizaciones[
+    (cotizaciones["MONTO"] >= monto_min) & (cotizaciones["MONTO"] <= monto_max)
+]
+
+# Mostrar tabla filtrada
+st.dataframe(cotizaciones_filtradas_tabla, use_container_width=True)
+
 # Filtros interactivos
 st.subheader("Filtrar por Estado del Semáforo")
 semaforo_seleccionado = st.selectbox(
@@ -110,7 +124,6 @@ nuevo_comentario = st.text_area("Comentario Actual:", comentario_actual)
 if st.button("Actualizar Comentario"):
     cotizaciones.loc[cotizaciones["CLIENTE"] == cliente_comentarios, "Comentarios"] = nuevo_comentario
     st.success("Comentario actualizado correctamente.")
-
 # Generación de reportes automatizados
 st.subheader("Reporte Automático de Cotizaciones Aprobadas")
 reporte_aprobadas = cotizaciones[cotizaciones["Semaforo"] == "🟢 Aprobada"]
@@ -125,17 +138,17 @@ if not reporte_aprobadas.empty:
     )
 else:
     st.info("No hay cotizaciones aprobadas actualmente.")
+
 # Proyecciones de Ventas Mensuales y Anuales
 st.subheader("Proyecciones de Ventas")
 
-# Simulación de datos para proyecciones
 def generar_proyecciones(df, columna="MONTO", meses=12):
     df["FECHA ENVIO"] = pd.to_datetime(df["FECHA ENVIO"], errors="coerce")
-    df = df.dropna(subset=["FECHA ENVIO"])  # Eliminar filas con fechas inválidas
+    df = df.dropna(subset=["FECHA ENVIO"])
     df_proyeccion = df.groupby(df["FECHA ENVIO"].dt.to_period("M"))[columna].sum().reset_index()
     df_proyeccion.rename(columns={"FECHA ENVIO": "Mes", columna: "Monto"}, inplace=True)
     df_proyeccion["Mes"] = df_proyeccion["Mes"].dt.to_timestamp()
-    # Agregar meses simulados
+    
     ultimo_mes = df_proyeccion["Mes"].max()
     for i in range(1, meses + 1):
         nuevo_mes = ultimo_mes + pd.DateOffset(months=i)
@@ -145,7 +158,6 @@ def generar_proyecciones(df, columna="MONTO", meses=12):
 try:
     proyeccion_mensual = generar_proyecciones(cotizaciones)
 
-    # Gráfico de Proyección Mensual
     fig_proyeccion_mensual = px.line(
         proyeccion_mensual,
         x="Mes",
@@ -157,7 +169,6 @@ try:
     fig_proyeccion_mensual.update_layout(xaxis_title="Mes", yaxis_title="Monto ($)")
     st.plotly_chart(fig_proyeccion_mensual)
 
-    # Gráfico de Proyección Anual
     proyeccion_anual = proyeccion_mensual.groupby(proyeccion_mensual["Mes"].dt.year)["Monto"].sum().reset_index()
     proyeccion_anual.rename(columns={"Mes": "Año", "Monto": "Monto Total"}, inplace=True)
 
@@ -166,8 +177,7 @@ try:
         x="Año",
         y="Monto Total",
         title="Proyección Anual de Ventas",
-        labels={"Año": "Año", "Monto Total": "Monto Total ($)"},
-        color_discrete_sequence=["blue"]
+        labels={"Año": "Año", "Monto Total": "Monto Total ($)"}
     )
     fig_proyeccion_anual.update_layout(xaxis_title="Año", yaxis_title="Monto Total ($)")
     st.plotly_chart(fig_proyeccion_anual)
@@ -178,21 +188,20 @@ except Exception as e:
 # Generar PDF con información general
 st.subheader("Generar PDF de Reporte")
 if st.button("Generar Reporte en PDF"):
-    # Aquí se integraría la lógica para crear un PDF (usando librerías como FPDF o ReportLab)
     st.info("Esta funcionalidad está en desarrollo, pero se simula que el PDF se ha generado.")
 
-# Exportar a JSON o CSV para Elevance
+# Exportar a JSON o CSV para Evidence
 st.subheader("Exportar Datos para Evidence")
 st.download_button(
     label="Descargar JSON para Evidence",
     data=cotizaciones.to_json(orient="records", indent=4).encode("utf-8"),
-    file_name="cotizaciones_elevance.json",
+    file_name="cotizaciones_evidence.json",
     mime="application/json"
 )
 st.download_button(
     label="Descargar CSV para Evidence",
     data=cotizaciones.to_csv(index=False).encode("utf-8"),
-    file_name="cotizaciones_elevance.csv",
+    file_name="cotizaciones_evidence.csv",
     mime="text/csv"
 )
 
