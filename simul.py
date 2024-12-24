@@ -112,6 +112,13 @@ if st.button("Aplicar Cambios"):
         if columna_a_editar in ["MONTO", "DIAS"]:
             nuevo_valor = float(nuevo_valor)
         cotizaciones.loc[cotizaciones["CLIENTE"] == cliente_a_editar, columna_a_editar] = nuevo_valor
+
+        # Recalcular semáforo si se edita el estatus
+        if columna_a_editar == "ESTATUS":
+            cotizaciones["Semaforo"] = cotizaciones["ESTATUS"].apply(
+                lambda x: "🟢 Aprobada" if x == "APROBADA" else ("🟡 Pendiente" if x == "PENDIENTE" else "🔴 Rechazada")
+            )
+        st.experimental_rerun()  # Refrescar la aplicación para reflejar los cambios
         st.success("¡Los cambios se han aplicado correctamente!")
     except ValueError:
         st.error("El valor ingresado no es válido para la columna seleccionada.")
@@ -123,6 +130,7 @@ comentario_actual = cotizaciones[cotizaciones["CLIENTE"] == cliente_comentarios]
 nuevo_comentario = st.text_area("Comentario Actual:", comentario_actual)
 if st.button("Actualizar Comentario"):
     cotizaciones.loc[cotizaciones["CLIENTE"] == cliente_comentarios, "Comentarios"] = nuevo_comentario
+    st.experimental_rerun()  # Refrescar la aplicación para reflejar los cambios
     st.success("Comentario actualizado correctamente.")
 # Generación de reportes automatizados
 st.subheader("Reporte Automático de Cotizaciones Aprobadas")
@@ -213,3 +221,55 @@ if st.button("Enviar Reporte"):
         st.success(f"Reporte enviado a {correo} (simulado).")
     else:
         st.error("Por favor, ingresa un correo válido.")
+# Análisis avanzado de datos
+st.subheader("Análisis Avanzado de Datos")
+
+# Gráficos interactivos de distribución
+st.markdown("### Distribución de Montos")
+fig_monto_distribucion = px.histogram(
+    cotizaciones,
+    x="MONTO",
+    title="Distribución de Montos Cotizados",
+    labels={"MONTO": "Monto ($)"},
+    nbins=50,
+    color_discrete_sequence=["#636EFA"]
+)
+fig_monto_distribucion.update_layout(xaxis_title="Monto ($)", yaxis_title="Frecuencia")
+st.plotly_chart(fig_monto_distribucion)
+
+# Análisis de correlación
+st.markdown("### Correlación entre Días y Montos")
+fig_correlation = px.scatter(
+    cotizaciones,
+    x="DIAS",
+    y="MONTO",
+    title="Relación entre Días y Montos",
+    labels={"DIAS": "Días", "MONTO": "Monto ($)"},
+    trendline="ols",
+    color="ESTATUS",
+    color_discrete_map={"APROBADA": "#2CA02C", "PENDIENTE": "#FF7F0E", "RECHAZADA": "#D62728"}
+)
+fig_correlation.update_layout(xaxis_title="Días", yaxis_title="Monto ($)")
+st.plotly_chart(fig_correlation)
+
+# Resumen de estadísticas clave
+st.markdown("### Resumen Estadístico")
+resumen_estadistico = cotizaciones[["MONTO", "DIAS"]].describe()
+st.table(resumen_estadistico)
+
+# Análisis por clasificación
+st.markdown("### Análisis por Clasificación de Cotizaciones")
+clasificacion_seleccionada = st.selectbox(
+    "Selecciona una clasificación:",
+    cotizaciones["CLASIFICACION"].unique()
+)
+cotizaciones_clasificadas = cotizaciones[cotizaciones["CLASIFICACION"] == clasificacion_seleccionada]
+
+fig_clasificacion = px.pie(
+    cotizaciones_clasificadas,
+    names="ESTATUS",
+    title=f"Distribución de Estatus para {clasificacion_seleccionada}",
+    hole=0.4,
+    color_discrete_sequence=["#2CA02C", "#FF7F0E", "#D62728"]
+)
+st.plotly_chart(fig_clasificacion)
