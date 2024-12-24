@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # Ruta del archivo CSV limpio
-FILE_PATH = "cleaned_coti.csv"
+FILE_PATH = "/mnt/data/cleaned_coti.csv"
 
 # Función para cargar y procesar los datos
 def cargar_datos(file_path):
@@ -35,6 +35,10 @@ def cargar_datos(file_path):
         df_copia["CLASIFICACION"] = "No clasificado"
     if "VENDEDOR" not in df_copia.columns:
         df_copia["VENDEDOR"] = "Desconocido"
+    if "Semaforo" not in df_copia.columns:
+        df_copia["Semaforo"] = df_copia["ESTATUS"].apply(
+            lambda x: "🟢 Aprobada" if x == "APROBADA" else ("🟡 Pendiente" if x == "PENDIENTE" else "🔴 Rechazada")
+        )
 
     # Limpieza y formateo de columnas numéricas
     df_copia["MONTO"] = pd.to_numeric(df_copia["MONTO"].replace({"\$": "", ",": ""}, regex=True), errors="coerce").fillna(0)
@@ -72,6 +76,9 @@ columnas_mostrar = [
     "AREA", "CLIENTE", "CONCEPTO", "CLASIFICACION", "VENDEDOR", "FECHA ENVIO", "DIAS", "MONTO", "ESTATUS", "Semaforo"
 ]
 
+# Validar columnas disponibles
+columnas_disponibles = [col for col in columnas_mostrar if col in cotizaciones_simuladas.columns]
+
 # Crear opciones dinámicas de filtrado
 filtros = {}
 if st.checkbox("Filtrar por Área"):
@@ -87,7 +94,7 @@ for columna, valores in filtros.items():
     if valores:
         cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas[columna].isin(valores)]
 
-st.dataframe(cotizaciones_filtradas[columnas_mostrar], use_container_width=True)
+st.dataframe(cotizaciones_filtradas[columnas_disponibles], use_container_width=True)
 
 # Visualización de métricas generales
 st.subheader("Métricas Generales")
@@ -98,7 +105,7 @@ col3.metric("Promedio de Días", f"{cotizaciones_filtradas['DIAS'].mean():.2f}")
 
 # Gráfico de Proyección Mensual
 st.subheader("Proyección de Ventas del Próximo Mes")
-proyeccion_mensual = cotizaciones_filtradas.groupby(cotizaciones_filtradas["FECHA ENVIO"].str[:7])[["MONTO"]].sum().reset_index()
+proyeccion_mensual = cotizaciones_filtradas.groupby(cotizaciones_filtradas["FECHA ENVIO"].str[:7])["MONTO"].sum().reset_index()
 proyeccion_mensual.columns = ["Mes", "Monto"]
 fig_proyeccion_mensual = px.line(
     proyeccion_mensual,
@@ -112,7 +119,7 @@ st.plotly_chart(fig_proyeccion_mensual)
 
 # Gráfico de Proyección Anual
 st.subheader("Proyección de Ventas Anual")
-proyeccion_anual = cotizaciones_filtradas.groupby(cotizaciones_filtradas["FECHA ENVIO"].str[:4])[["MONTO"]].sum().reset_index()
+proyeccion_anual = cotizaciones_filtradas.groupby(cotizaciones_filtradas["FECHA ENVIO"].str[:4])["MONTO"].sum().reset_index()
 proyeccion_anual.columns = ["Año", "Monto"]
 fig_proyeccion_anual = px.line(
     proyeccion_anual,
