@@ -182,15 +182,15 @@ if st.button("Generar Reporte en PDF"):
     st.info("Esta funcionalidad está en desarrollo, pero se simula que el PDF se ha generado.")
 
 # Exportar a JSON o CSV para Elevance
-st.subheader("Exportar Datos para Elevance")
+st.subheader("Exportar Datos para Evidence")
 st.download_button(
-    label="Descargar JSON para Elevance",
+    label="Descargar JSON para Evidence",
     data=cotizaciones.to_json(orient="records", indent=4).encode("utf-8"),
     file_name="cotizaciones_elevance.json",
     mime="application/json"
 )
 st.download_button(
-    label="Descargar CSV para Elevance",
+    label="Descargar CSV para Evidence",
     data=cotizaciones.to_csv(index=False).encode("utf-8"),
     file_name="cotizaciones_elevance.csv",
     mime="text/csv"
