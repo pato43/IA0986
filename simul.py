@@ -129,7 +129,9 @@ st.subheader("Proyecciones de Ventas")
 
 # Simulación de datos para proyecciones
 def generar_proyecciones(df, columna="MONTO", meses=12):
-    df_proyeccion = df.groupby(pd.to_datetime(df["FECHA ENVIO"]).dt.to_period("M"))[columna].sum().reset_index()
+    df["FECHA ENVIO"] = pd.to_datetime(df["FECHA ENVIO"], errors="coerce")
+    df = df.dropna(subset=["FECHA ENVIO"])  # Eliminar filas con fechas inválidas
+    df_proyeccion = df.groupby(df["FECHA ENVIO"].dt.to_period("M"))[columna].sum().reset_index()
     df_proyeccion.rename(columns={"FECHA ENVIO": "Mes", columna: "Monto"}, inplace=True)
     df_proyeccion["Mes"] = df_proyeccion["Mes"].dt.to_timestamp()
     # Agregar meses simulados
@@ -139,34 +141,38 @@ def generar_proyecciones(df, columna="MONTO", meses=12):
         df_proyeccion = pd.concat([df_proyeccion, pd.DataFrame({"Mes": [nuevo_mes], "Monto": [df_proyeccion["Monto"].mean()]})])
     return df_proyeccion
 
-proyeccion_mensual = generar_proyecciones(cotizaciones)
+try:
+    proyeccion_mensual = generar_proyecciones(cotizaciones)
 
-# Gráfico de Proyección Mensual
-fig_proyeccion_mensual = px.line(
-    proyeccion_mensual,
-    x="Mes",
-    y="Monto",
-    title="Proyección Mensual de Ventas",
-    labels={"Mes": "Mes", "Monto": "Monto ($)"},
-    markers=True
-)
-fig_proyeccion_mensual.update_layout(xaxis_title="Mes", yaxis_title="Monto ($)")
-st.plotly_chart(fig_proyeccion_mensual)
+    # Gráfico de Proyección Mensual
+    fig_proyeccion_mensual = px.line(
+        proyeccion_mensual,
+        x="Mes",
+        y="Monto",
+        title="Proyección Mensual de Ventas",
+        labels={"Mes": "Mes", "Monto": "Monto ($)"},
+        markers=True
+    )
+    fig_proyeccion_mensual.update_layout(xaxis_title="Mes", yaxis_title="Monto ($)")
+    st.plotly_chart(fig_proyeccion_mensual)
 
-# Gráfico de Proyección Anual
-proyeccion_anual = proyeccion_mensual.groupby(proyeccion_mensual["Mes"].dt.year)["Monto"].sum().reset_index()
-proyeccion_anual.rename(columns={"Mes": "Año", "Monto": "Monto Total"}, inplace=True)
+    # Gráfico de Proyección Anual
+    proyeccion_anual = proyeccion_mensual.groupby(proyeccion_mensual["Mes"].dt.year)["Monto"].sum().reset_index()
+    proyeccion_anual.rename(columns={"Mes": "Año", "Monto": "Monto Total"}, inplace=True)
 
-fig_proyeccion_anual = px.bar(
-    proyeccion_anual,
-    x="Año",
-    y="Monto Total",
-    title="Proyección Anual de Ventas",
-    labels={"Año": "Año", "Monto Total": "Monto Total ($)"},
-    color_discrete_sequence=["blue"]
-)
-fig_proyeccion_anual.update_layout(xaxis_title="Año", yaxis_title="Monto Total ($)")
-st.plotly_chart(fig_proyeccion_anual)
+    fig_proyeccion_anual = px.bar(
+        proyeccion_anual,
+        x="Año",
+        y="Monto Total",
+        title="Proyección Anual de Ventas",
+        labels={"Año": "Año", "Monto Total": "Monto Total ($)"},
+        color_discrete_sequence=["blue"]
+    )
+    fig_proyeccion_anual.update_layout(xaxis_title="Año", yaxis_title="Monto Total ($)")
+    st.plotly_chart(fig_proyeccion_anual)
+
+except Exception as e:
+    st.error(f"Error al generar proyecciones: {e}")
 
 # Generar PDF con información general
 st.subheader("Generar PDF de Reporte")
