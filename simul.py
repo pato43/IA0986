@@ -244,7 +244,7 @@ st.download_button(
 )
 # Parte 3: Seguimiento y Reportes Automatizados
 
-# Seguimiento detallado del flujo de cotización
+# Seguimiento del flujo de cotización
 st.subheader("Seguimiento del Flujo de Cotización")
 st.markdown("""
 **Punto 2: Seguimiento del flujo de cotización**  
@@ -275,18 +275,8 @@ if not cotizaciones_pendientes.empty:
 else:
     st.info("No hay cotizaciones pendientes.")
 
-# Seguimiento de aprobaciones y tiempos
-st.subheader("Seguimiento de Cotizaciones Aprobadas")
-st.markdown("""
-**Punto 3: Integración con Evidence**  
-Muestra las cotizaciones aprobadas listas para ser capturadas en Evidence.  
-Incluye los tiempos transcurridos desde que se levantó hasta su aprobación.
-""")
-cotizaciones_aprobadas["Dias_Aprobacion"] = cotizaciones_aprobadas["DIAS"]
-st.dataframe(cotizaciones_aprobadas[seguimiento_columnas + ["Dias_Aprobacion"]], use_container_width=True)
-
 # Gráfico de Proyección Mensual
-st.subheader("Proyección de Ventas para el Próximo Mes")
+st.subheader("Proyección de Ventas Mensual")
 st.markdown("""
 **Punto 1: Formato unificado para presupuestos y ventas**  
 Proyecta las ventas esperadas para el próximo mes basado en el historial actual.
@@ -300,7 +290,7 @@ fig_proyeccion_mensual = px.line(
     title="Proyección Mensual de Ventas",
     markers=True
 )
-st.plotly_chart(fig_proyeccion_mensual)
+st.plotly_chart(fig_proyeccion_mensual, use_container_width=True)
 
 # Gráfico de Proyección Anual
 st.subheader("Proyección Anual de Ventas")
@@ -317,7 +307,7 @@ fig_proyeccion_anual = px.line(
     title="Proyección Anual de Ventas",
     markers=True
 )
-st.plotly_chart(fig_proyeccion_anual)
+st.plotly_chart(fig_proyeccion_anual, use_container_width=True)
 
 # Envío de Reportes por Correo
 st.subheader("Envío de Reportes por Correo")
