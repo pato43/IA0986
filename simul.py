@@ -124,3 +124,79 @@ if not reporte_aprobadas.empty:
     )
 else:
     st.info("No hay cotizaciones aprobadas actualmente.")
+# Proyecciones de Ventas Mensuales y Anuales
+st.subheader("Proyecciones de Ventas")
+
+# Simulación de datos para proyecciones
+def generar_proyecciones(df, columna="MONTO", meses=12):
+    df_proyeccion = df.groupby(pd.to_datetime(df["FECHA ENVIO"]).dt.to_period("M"))[columna].sum().reset_index()
+    df_proyeccion.rename(columns={"FECHA ENVIO": "Mes", columna: "Monto"}, inplace=True)
+    df_proyeccion["Mes"] = df_proyeccion["Mes"].dt.to_timestamp()
+    # Agregar meses simulados
+    ultimo_mes = df_proyeccion["Mes"].max()
+    for i in range(1, meses + 1):
+        nuevo_mes = ultimo_mes + pd.DateOffset(months=i)
+        df_proyeccion = pd.concat([df_proyeccion, pd.DataFrame({"Mes": [nuevo_mes], "Monto": [df_proyeccion["Monto"].mean()]})])
+    return df_proyeccion
+
+proyeccion_mensual = generar_proyecciones(cotizaciones)
+
+# Gráfico de Proyección Mensual
+fig_proyeccion_mensual = px.line(
+    proyeccion_mensual,
+    x="Mes",
+    y="Monto",
+    title="Proyección Mensual de Ventas",
+    labels={"Mes": "Mes", "Monto": "Monto ($)"},
+    markers=True
+)
+fig_proyeccion_mensual.update_layout(xaxis_title="Mes", yaxis_title="Monto ($)")
+st.plotly_chart(fig_proyeccion_mensual)
+
+# Gráfico de Proyección Anual
+proyeccion_anual = proyeccion_mensual.groupby(proyeccion_mensual["Mes"].dt.year)["Monto"].sum().reset_index()
+proyeccion_anual.rename(columns={"Mes": "Año", "Monto": "Monto Total"}, inplace=True)
+
+fig_proyeccion_anual = px.bar(
+    proyeccion_anual,
+    x="Año",
+    y="Monto Total",
+    title="Proyección Anual de Ventas",
+    labels={"Año": "Año", "Monto Total": "Monto Total ($)"},
+    color_discrete_sequence=["blue"]
+)
+fig_proyeccion_anual.update_layout(xaxis_title="Año", yaxis_title="Monto Total ($)")
+st.plotly_chart(fig_proyeccion_anual)
+
+# Generar PDF con información general
+st.subheader("Generar PDF de Reporte")
+if st.button("Generar Reporte en PDF"):
+    # Aquí se integraría la lógica para crear un PDF (usando librerías como FPDF o ReportLab)
+    st.info("Esta funcionalidad está en desarrollo, pero se simula que el PDF se ha generado.")
+
+# Exportar a JSON o CSV para Elevance
+st.subheader("Exportar Datos para Elevance")
+if st.button("Exportar a JSON"):
+    st.download_button(
+        label="Descargar JSON para Elevance",
+        data=cotizaciones.to_json(orient="records", indent=4).encode("utf-8"),
+        file_name="cotizaciones_elevance.json",
+        mime="application/json"
+    )
+
+if st.button("Exportar a CSV"):
+    st.download_button(
+        label="Descargar CSV para Elevance",
+        data=cotizaciones.to_csv(index=False).encode("utf-8"),
+        file_name="cotizaciones_elevance.csv",
+        mime="text/csv"
+    )
+
+# Función para enviar correo (simulada)
+st.subheader("Enviar Reporte por Correo")
+correo = st.text_input("Ingresa el correo electrónico:")
+if st.button("Enviar Reporte"):
+    if correo:
+        st.success(f"Reporte enviado a {correo} (simulado).")
+    else:
+        st.error("Por favor, ingresa un correo válido.")
