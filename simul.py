@@ -108,7 +108,7 @@ if "LLAMADA AL CLIENTE" in cotizaciones.columns:
     fig_metodos.update_layout(xaxis_title="Método de Captura", yaxis_title="Cantidad")
     st.plotly_chart(fig_metodos)
 else:
-    st.warning("No se encontraron datos para los métodos de captura.")
+    st.warning("Algunos datos relacionados con el método de captura están incompletos.")
 
 # Generación de reportes automatizados
 st.subheader("Reporte Automático de Cotizaciones Aprobadas")
@@ -177,28 +177,24 @@ except Exception as e:
 # Generar PDF con información general
 st.subheader("Generar PDF de Reporte")
 if st.button("Generar Reporte en PDF"):
-    # Aquí se integraría la lógica para crear un PDF (usando librerías como FPDF o ReportLab)
     st.info("Esta funcionalidad está en desarrollo, pero se simula que el PDF se ha generado.")
 
 # Exportar a JSON o CSV para Elevance
 st.subheader("Exportar Datos para Elevance")
-if st.button("Exportar a JSON"):
-    st.download_button(
-        label="Descargar JSON para Elevance",
-        data=cotizaciones.to_json(orient="records", indent=4).encode("utf-8"),
-        file_name="cotizaciones_elevance.json",
-        mime="application/json"
-    )
+st.download_button(
+    label="Descargar JSON para Elevance",
+    data=cotizaciones.to_json(orient="records", indent=4).encode("utf-8"),
+    file_name="cotizaciones_elevance.json",
+    mime="application/json"
+)
+st.download_button(
+    label="Descargar CSV para Elevance",
+    data=cotizaciones.to_csv(index=False).encode("utf-8"),
+    file_name="cotizaciones_elevance.csv",
+    mime="text/csv"
+)
 
-if st.button("Exportar a CSV"):
-    st.download_button(
-        label="Descargar CSV para Elevance",
-        data=cotizaciones.to_csv(index=False).encode("utf-8"),
-        file_name="cotizaciones_elevance.csv",
-        mime="text/csv"
-    )
-
-# Función para enviar correo (simulada)
+# Función para enviar reporte por correo (simulada)
 st.subheader("Enviar Reporte por Correo")
 correo = st.text_input("Ingresa el correo electrónico:")
 if st.button("Enviar Reporte"):
