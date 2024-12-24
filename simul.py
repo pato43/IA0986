@@ -52,27 +52,37 @@ cotizaciones = cargar_datos(FILE_PATH)
 # Introducción
 st.title("Dashboard de Cotizaciones")
 st.markdown("""
-Este dashboard resuelve las siguientes problemáticas fundamentales del flujo de trabajo:
+Este dashboard resuelve las siguientes problemáticas fundamentales:
 
 1. **Formato Unificado para Presupuestos y Ventas**:
-   - **Sección Resolutiva:** Las tablas de "Estado General de Clientes" y "Generalizaciones de Cotizaciones" permiten unificar y automatizar análisis de presupuestos y ventas.
-   - **Cómo lo Resuelve:** Evita procesos manuales al consolidar ambos flujos en un solo espacio de análisis.
+   - **Sección Resolutiva:** Las tablas de "Estado General de Clientes" y "Generalizaciones de Cotizaciones" proporcionan una visión consolidada de presupuestos y ventas.
+   - **Cómo lo Resuelve:** Automatiza los procesos de análisis, eliminando tareas manuales y unificando flujos.
 
 2. **Seguimiento del Flujo de Cotización**:
-   - **Sección Resolutiva:** La sección "Seguimiento de la Venta" rastrea el progreso de cada cotización, identificando tiempos de respuesta y estado actual.
-   - **Cómo lo Resuelve:** Monitorea cuándo y quién envió las cotizaciones, asegurando que se procesen dentro de los tiempos establecidos.
+   - **Sección Resolutiva:** La sección "Seguimiento de la Venta" rastrea el progreso de cada cotización, identificando responsables, tiempos de envío y estado actual.
+   - **Cómo lo Resuelve:** Asegura que las cotizaciones sean gestionadas dentro de los plazos establecidos.
 
 3. **Integración con Evidence**:
-   - **Sección Resolutiva:** Los datos aprobados (columna "Semaforo") están listos para exportación directa y captura en Evidence.
-   - **Cómo lo Resuelve:** Automatiza el envío de datos aprobados a sistemas externos para minimizar errores y duplicación de tareas.
+   - **Sección Resolutiva:** Los datos aprobados están identificados mediante la columna "Semaforo" y son exportables para integrarse en sistemas externos como Evidence.
+   - **Cómo lo Resuelve:** Automatiza la transferencia de datos aprobados, minimizando errores.
 """)
 
-# Tabla principal
+# Tabla principal con filtros
 st.subheader("Estado General de Clientes")
 columnas_mostrar = [
     "AREA", "CLIENTE", "CONCEPTO", "CLASIFICACION", "VENDEDOR", "FECHA ENVIO", "DIAS", "MONTO", "ESTATUS", "Semaforo"
 ]
-st.dataframe(cotizaciones[columnas_mostrar], use_container_width=True)
+# Filtros adicionales para esta sección
+filtro_area = st.selectbox("Filtrar por Área:", ["Todos"] + cotizaciones["AREA"].unique().tolist())
+filtro_estatus = st.selectbox("Filtrar por Estatus:", ["Todos"] + cotizaciones["ESTATUS"].unique().tolist())
+
+cotizaciones_filtradas = cotizaciones.copy()
+if filtro_area != "Todos":
+    cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas["AREA"] == filtro_area]
+if filtro_estatus != "Todos":
+    cotizaciones_filtradas = cotizaciones_filtradas[cotizaciones_filtradas["ESTATUS"] == filtro_estatus]
+
+st.dataframe(cotizaciones_filtradas[columnas_mostrar], use_container_width=True)
 
 # Actualización dinámica
 st.subheader("Actualizar Datos Dinámicamente")
@@ -202,6 +212,15 @@ if vendedor_seleccionado:
     st.write(f"**Promedio de Días para Cierre:** {promedio_dias:.2f} días")
     st.write(f"**Total de Cotizaciones Generadas:** {total_cotizaciones}")
 
+    # Filtro adicional por concepto
+    concepto_vendedor = st.multiselect(
+        "Filtrar por concepto:",
+        ventas_vendedor["CONCEPTO"].unique()
+    )
+    if concepto_vendedor:
+        ventas_vendedor_filtradas = ventas_vendedor[ventas_vendedor["CONCEPTO"].isin(concepto_vendedor)]
+        st.dataframe(ventas_vendedor_filtradas, use_container_width=True)
+
 # Exportar datos del análisis por vendedor
 st.subheader("Exportar Análisis del Vendedor")
 st.download_button(
@@ -224,17 +243,26 @@ st.markdown("""
 3. **Integración con Evidence**:
    - **Sección Resolutiva:** "Reporte Automático de Cotizaciones Aprobadas" asegura la exportación de datos aprobados para su integración con Evidence.
 """)
-# Tablas detalladas con filtros
+# Tablas detalladas con filtros avanzados
 st.subheader("Tablas Detalladas con Filtros")
 
 # Análisis por Área
 st.markdown("### Análisis por Área")
 # **Resuelve Punto 1 (Formato Unificado para Presupuestos y Ventas)**
-area_seleccionada = st.selectbox("Selecciona un área:", cotizaciones["AREA"].unique())
-if area_seleccionada:
+area_seleccionada = st.selectbox("Selecciona un área:", ["Todos"] + cotizaciones["AREA"].unique().tolist())
+if area_seleccionada != "Todos":
     cotizaciones_area = cotizaciones[cotizaciones["AREA"] == area_seleccionada]
-    st.dataframe(cotizaciones_area, use_container_width=True)
-    st.write(f"Total de registros para el área {area_seleccionada}: {len(cotizaciones_area)}")
+else:
+    cotizaciones_area = cotizaciones
+st.dataframe(cotizaciones_area, use_container_width=True)
+st.write(f"Total de registros para el área seleccionada: {len(cotizaciones_area)}")
+
+# Filtro adicional: Clasificación
+clasificacion_seleccionada = st.multiselect("Filtrar por Clasificación:", cotizaciones_area["CLASIFICACION"].unique())
+if clasificacion_seleccionada:
+    cotizaciones_area = cotizaciones_area[cotizaciones_area["CLASIFICACION"].isin(clasificacion_seleccionada)]
+st.dataframe(cotizaciones_area, use_container_width=True)
+st.write(f"Registros después de filtrar por clasificación: {len(cotizaciones_area)}")
 
 # Filtrar por Vendedor
 st.markdown("### Filtrar por Vendedor")
@@ -242,8 +270,8 @@ st.markdown("### Filtrar por Vendedor")
 vendedor_seleccionado = st.multiselect("Selecciona uno o más vendedores:", cotizaciones["VENDEDOR"].unique())
 if vendedor_seleccionado:
     cotizaciones_vendedor = cotizaciones[cotizaciones["VENDEDOR"].isin(vendedor_seleccionado)]
-    st.dataframe(cotizaciones_vendedor, use_container_width=True)
-    st.write(f"Total de registros para los vendedores seleccionados: {len(cotizaciones_vendedor)}")
+st.dataframe(cotizaciones_vendedor, use_container_width=True)
+st.write(f"Total de registros para los vendedores seleccionados: {len(cotizaciones_vendedor)}")
 
 # Resumen por Clasificación
 st.markdown("### Resumen por Clasificación")
@@ -257,11 +285,11 @@ st.markdown("### Tabla con Múltiples Filtros")
 # **Resuelve Punto 2 (Seguimiento del Flujo de Cotización)**
 col1, col2, col3 = st.columns(3)
 with col1:
-    filtro_area = st.selectbox("Filtrar por Área:", ["Todos"] + list(cotizaciones["AREA"].unique()))
+    filtro_area = st.selectbox("Filtrar por Área:", ["Todos"] + cotizaciones["AREA"].unique().tolist())
 with col2:
-    filtro_estatus = st.selectbox("Filtrar por Estatus:", ["Todos"] + list(cotizaciones["ESTATUS"].unique()))
+    filtro_estatus = st.selectbox("Filtrar por Estatus:", ["Todos"] + cotizaciones["ESTATUS"].unique().tolist())
 with col3:
-    filtro_vendedor = st.selectbox("Filtrar por Vendedor:", ["Todos"] + list(cotizaciones["VENDEDOR"].unique()))
+    filtro_vendedor = st.selectbox("Filtrar por Vendedor:", ["Todos"] + cotizaciones["VENDEDOR"].unique())
 
 # Aplicar filtros
 cotizaciones_filtradas = cotizaciones.copy()
