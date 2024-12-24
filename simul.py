@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # Ruta del archivo CSV limpio
-FILE_PATH = "/mnt/data/cleaned_coti.csv"
+FILE_PATH = "cleaned_coti.csv"
 
 # Función para cargar y procesar los datos
 def cargar_datos(file_path):
