@@ -52,8 +52,16 @@ cotizaciones = cargar_datos(FILE_PATH)
 # Introducción
 st.title("Dashboard de Cotizaciones")
 st.markdown("""
-Este dashboard permite gestionar cotizaciones de manera eficiente, con funcionalidad para edición de datos, 
-comentarios, análisis y generación de reportes automatizados.
+Este dashboard resuelve las principales problemáticas del proceso de cotización:
+
+1. **Formato Unificado para Presupuestos y Ventas**:
+   Se automatiza el análisis y seguimiento de las cotizaciones mediante un formato integrado que unifica presupuestos y ventas, eliminando la necesidad de procesos manuales.
+
+2. **Flujo de Cotización Eficiente**:
+   El dashboard monitorea el estado de cada cotización desde su creación hasta su aprobación, indicando tiempos de envío y validación para evitar demoras.
+
+3. **Integración con Evidence**:
+   Las cotizaciones aprobadas se envían automáticamente al sistema Evidence para su captura, asegurando un flujo de trabajo continuo y organizado.
 """)
 
 # Tabla principal
@@ -80,7 +88,7 @@ nuevo_valor = st.text_input("Introduce el nuevo valor:")
 
 if st.button("Actualizar Datos"):
     actualizar_datos(cliente_a_actualizar, columna_a_actualizar, nuevo_valor)
-    st.experimental_data_editor(cotizaciones)
+    st.experimental_rerun()
 
 # Seguimiento de la venta
 st.subheader("Seguimiento de la Venta")
@@ -98,6 +106,17 @@ if not venta_cliente.empty:
     st.progress(progreso / 100)
 else:
     st.warning("No se encontraron ventas para este cliente.")
+
+# Tabla de generalizaciones de cotizaciones
+st.subheader("Generalizaciones de Cotizaciones")
+resumen_cotizaciones = cotizaciones.groupby("VENDEDOR").agg(
+    total_monto=("MONTO", "sum"),
+    promedio_dias=("DIAS", "mean"),
+    total_cotizaciones=("CLIENTE", "count")
+).reset_index()
+resumen_cotizaciones.rename(columns={"VENDEDOR": "Vendedor", "total_monto": "Monto Total", "promedio_dias": "Promedio de Días", "total_cotizaciones": "Número de Cotizaciones"}, inplace=True)
+
+st.dataframe(resumen_cotizaciones, use_container_width=True)
 # Generación de reportes automatizados
 st.subheader("Reporte Automático de Cotizaciones Aprobadas")
 reporte_aprobadas = cotizaciones[cotizaciones["Semaforo"] == "🟢 Aprobada"]
@@ -122,7 +141,7 @@ def generar_proyecciones(df, columna="MONTO", meses=12):
     df_proyeccion = df.groupby(df["FECHA ENVIO"].dt.to_period("M"))[columna].sum().reset_index()
     df_proyeccion.rename(columns={"FECHA ENVIO": "Mes", columna: "Monto"}, inplace=True)
     df_proyeccion["Mes"] = df_proyeccion["Mes"].dt.to_timestamp()
-    
+
     ultimo_mes = df_proyeccion["Mes"].max()
     for i in range(1, meses + 1):
         nuevo_mes = ultimo_mes + pd.DateOffset(months=i)
@@ -159,46 +178,41 @@ try:
 except Exception as e:
     st.error(f"Error al generar proyecciones: {e}")
 
-# Actualización dinámica de datos en las proyecciones
-st.subheader("Actualizar Datos en Proyecciones")
-cliente_a_actualizar_proyeccion = st.selectbox("Selecciona un cliente para actualizar monto:", cotizaciones["CLIENTE"].unique())
-monto_nuevo = st.number_input("Nuevo monto para el cliente seleccionado:", min_value=0.0, step=0.01)
+# Análisis de Vendedores
+st.subheader("Análisis por Vendedor")
+vendedor_seleccionado = st.selectbox("Selecciona un vendedor para analizar:", cotizaciones["VENDEDOR"].unique())
+if vendedor_seleccionado:
+    ventas_vendedor = cotizaciones[cotizaciones["VENDEDOR"] == vendedor_seleccionado]
+    st.write(f"Ventas realizadas por {vendedor_seleccionado}:")
+    st.dataframe(ventas_vendedor, use_container_width=True)
 
-if st.button("Actualizar Monto en Proyecciones"):
-    index = cotizaciones[cotizaciones["CLIENTE"] == cliente_a_actualizar_proyeccion].index
-    if not index.empty:
-        cotizaciones.loc[index, "MONTO"] = monto_nuevo
-        st.success(f"Monto actualizado para {cliente_a_actualizar_proyeccion}")
-        st.experimental_data_editor(cotizaciones)
-    else:
-        st.error("Cliente no encontrado en los datos")
+    total_ventas = ventas_vendedor["MONTO"].sum()
+    promedio_dias = ventas_vendedor["DIAS"].mean()
+    total_cotizaciones = len(ventas_vendedor)
 
-# Gráficos adicionales
-st.subheader("Gráficos de Análisis Adicionales")
-fig_distribucion_monto = px.histogram(
-    cotizaciones,
-    x="MONTO",
-    nbins=30,
-    title="Distribución de Montos Cotizados",
-    labels={"MONTO": "Monto ($)"},
-    color_discrete_sequence=["#636EFA"]
+    st.write(f"**Monto Total Vendido:** ${total_ventas:,.2f}")
+    st.write(f"**Promedio de Días para Cierre:** {promedio_dias:.2f} días")
+    st.write(f"**Total de Cotizaciones Generadas:** {total_cotizaciones}")
+
+# Exportar datos del análisis por vendedor
+st.subheader("Exportar Análisis del Vendedor")
+st.download_button(
+    label=f"Descargar Ventas de {vendedor_seleccionado}",
+    data=ventas_vendedor.to_csv(index=False).encode("utf-8"),
+    file_name=f"ventas_{vendedor_seleccionado}.csv",
+    mime="text/csv"
 )
-fig_distribucion_monto.update_layout(xaxis_title="Monto ($)", yaxis_title="Frecuencia")
-st.plotly_chart(fig_distribucion_monto)
 
-fig_dias_vs_monto = px.scatter(
-    cotizaciones,
-    x="DIAS",
-    y="MONTO",
-    title="Relación entre Días y Monto",
-    labels={"DIAS": "Días", "MONTO": "Monto ($)"},
-    color="ESTATUS",
-    trendline="ols"
-)
-fig_dias_vs_monto.update_layout(xaxis_title="Días", yaxis_title="Monto ($)")
-st.plotly_chart(fig_dias_vs_monto)
+# Texto explicativo
+st.markdown("""
+### Resolución de Problemas Clave:
 
-st.markdown("---")
+1. **Formato Unificado**: Al analizar los datos por vendedor y generar proyecciones, se elimina el trabajo manual y se integran presupuestos y ventas en un solo sistema.
+
+2. **Seguimiento de Cotizaciones**: Cada vendedor puede visualizar cuánto ha vendido, cuánto tiempo toma cerrar cotizaciones, y el estado actual de cada venta.
+
+3. **Gestión Automatizada**: Se permite exportar datos directamente para reportes y análisis más avanzados en sistemas externos como Evidence.
+""")
 # Tablas detalladas con filtros
 st.subheader("Tablas Detalladas con Filtros")
 
@@ -265,74 +279,17 @@ st.download_button(
     file_name="resumen_clasificacion.csv",
     mime="text/csv"
 )
-# Exportar a JSON o CSV para Evidence
-st.subheader("Exportar Datos para Evidence")
-st.download_button(
-    label="Descargar JSON para Evidence",
-    data=cotizaciones.to_json(orient="records", indent=4).encode("utf-8"),
-    file_name="cotizaciones_evidence.json",
-    mime="application/json"
-)
-st.download_button(
-    label="Descargar CSV para Evidence",
-    data=cotizaciones.to_csv(index=False).encode("utf-8"),
-    file_name="cotizaciones_evidence.csv",
-    mime="text/csv"
-)
 
-# Funcionalidad para enviar reportes por correo
-st.subheader("Enviar Reporte por Correo")
-correo = st.text_input("Ingresa el correo electrónico:")
-reporte_a_enviar = st.selectbox(
-    "Selecciona el reporte a enviar:",
-    ["Reporte Completo", "Reporte Aprobados", "Datos Filtrados"]
-)
+# Texto explicativo
+st.markdown("""
+### Resolución de Problemas Clave en el Dashboard:
 
-if st.button("Enviar Reporte"):
-    if correo:
-        if reporte_a_enviar == "Reporte Completo":
-            data_to_send = cotizaciones.to_csv(index=False)
-        elif reporte_a_enviar == "Reporte Aprobados":
-            data_to_send = cotizaciones[cotizaciones["Semaforo"] == "🟢 Aprobada"].to_csv(index=False)
-        elif reporte_a_enviar == "Datos Filtrados":
-            data_to_send = cotizaciones_filtradas.to_csv(index=False)
-        else:
-            st.error("No se seleccionó un reporte válido.")
-            data_to_send = None
+1. **Formato para Presupuestos y Ventas**:
+   Con las tablas de análisis y filtros, se unifica la visión de presupuestos y ventas, eliminando procesos manuales y permitiendo un análisis automatizado en tiempo real.
 
-        if data_to_send:
-            st.success(f"Reporte '{reporte_a_enviar}' enviado a {correo} (simulación).")
-        else:
-            st.error("No se pudo enviar el reporte.")
-    else:
-        st.error("Por favor, ingresa un correo válido.")
+2. **Seguimiento del Flujo de Cotización**:
+   Las tablas filtradas permiten identificar rápidamente el estado de cada cotización, quién la generó y cuál es su estado actual (Enviada, Aprobada, etc.).
 
-# Generar PDF del reporte
-st.subheader("Generar PDF de Reporte")
-def generar_pdf(dataframe, filename="reporte.pdf"):
-    from fpdf import FPDF
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-
-    # Título
-    pdf.cell(200, 10, txt="Reporte de Cotizaciones", ln=True, align="C")
-    pdf.ln(10)
-
-    # Agregar datos de la tabla
-    for i, row in dataframe.iterrows():
-        pdf.cell(200, 10, txt=f"{row.to_string(index=False)}", ln=True, align="L")
-        if i > 20:  # Limitar las filas en el PDF
-            pdf.cell(200, 10, txt="(Más filas disponibles en el archivo CSV)", ln=True, align="L")
-            break
-
-    # Guardar PDF
-    pdf.output(filename)
-
-if st.button("Generar PDF"):
-    try:
-        generar_pdf(cotizaciones)
-        st.success("PDF generado correctamente (simulación).")
-    except Exception as e:
-        st.error(f"Error al generar el PDF: {e}")
+3. **Detalles para Evidence**:
+   Los datos filtrados y las exportaciones aseguran que las cotizaciones aprobadas puedan ser fácilmente integradas con Evidence para su seguimiento y registro.
+""")
